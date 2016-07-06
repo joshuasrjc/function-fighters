@@ -268,7 +268,7 @@ public class GameObject
 	public void draw(Graphics2D g)
 	{
 		BufferedImage sprite = Sprites.SPRITES[spriteIndex];
-		if(sprite == null || true)
+		if(sprite == null)
 		{
 			g.setColor(Color.LIGHT_GRAY);
 			g.fillOval((int)(position.x - radius), (int)(position.y - radius), (int)(2 * radius), (int)(2 * radius));
