@@ -49,7 +49,7 @@ public class Self extends Fighter
 		
 		if(update.isfunction())
 		{
-			update.call(toLuaValue());
+			update.call(game.toLuaValue(), this.toLuaValue());
 		}
 		
 		//addForce(new Vector2(1, 0));
@@ -90,6 +90,20 @@ public class Self extends Fighter
 	{
 		if(speed.isnumber()) self.moveInDirection(self.getRotation() + 3 * QUARTER_TURN, speed.tofloat());
 		else self.moveInDirection(self.getRotation() + 3 * QUARTER_TURN, 1f);
+		return NIL;
+	}};
+	
+	LuaValue turnLeft = new OneArgFunction() { @Override public LuaValue call(LuaValue speed)
+	{
+		if(speed.isnumber()) self.addTorque(-speed.tofloat());
+		else self.addTorque(-1f);
+		return NIL;
+	}};
+	
+	LuaValue turnRight = new OneArgFunction() { @Override public LuaValue call(LuaValue speed)
+	{
+		if(speed.isnumber()) self.addTorque(speed.tofloat());
+		else self.addTorque(1f);
 		return NIL;
 	}};
 }

@@ -7,12 +7,25 @@ import java.util.ArrayList;
 
 import javax.swing.JPanel;
 
+import org.luaj.vm2.LuaValue;
+
 import com.github.joshuasrjc.functionfighters.network.Frame;
 import com.github.joshuasrjc.functionfighters.network.Server;
 import com.github.joshuasrjc.functionfighters.ui.GameViewer;
 
 public class Game implements Runnable
 {
+	public LuaValue toLuaValue()
+	{
+		LuaValue lv = LuaValue.tableOf();
+		lv.set("top", TOP);
+		lv.set("bottom", BOTTOM);
+		lv.set("left", LEFT);
+		lv.set("right", RIGHT);
+		lv.set("nTeams", N_TEAMS);
+		return lv;
+	}
+	
 	public static final int N_TEAMS = 2;
 	public static final long FRAME_MILLIS = 20;
 	

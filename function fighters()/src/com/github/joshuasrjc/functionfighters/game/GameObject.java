@@ -134,6 +134,11 @@ public class GameObject
 		acceleration.add(force);
 	}
 	
+	public void addTorque(float torque)
+	{
+		rotationalAcceleration += torque;
+	}
+	
 	public void destroy()
 	{
 		game.objects.remove(this);
