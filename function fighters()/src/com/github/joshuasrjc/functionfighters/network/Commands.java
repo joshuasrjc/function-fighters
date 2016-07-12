@@ -51,7 +51,7 @@ public class Commands
 			@Override
 			public LuaValue call(LuaValue arg)
 			{
-				server.sendMessageToAllClients(Server.INFO, arg.tojstring());
+				server.sendPacketToAllClients(new Packet(Packet.INFO, arg.tojstring()));
 				return NIL;
 			}
 		});
@@ -64,14 +64,14 @@ public class Commands
 			}
 			else
 			{
-				server.sendMessageToAllClients(Server.CODE, message);
+				server.sendPacketToAllClients(new Packet(Packet.CODE, message));
 			}
 			LuaValue chunk = globals.load(message);
 			chunk.call();
 		}
 		catch(Exception e)
 		{
-			server.sendMessageToAllClients(Server.ERROR, "Error: Invalid script.");
+			server.sendPacketToAllClients(new Packet(Packet.ERROR, "Error: Invalid script."));
 		}
 	}
 	

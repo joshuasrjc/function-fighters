@@ -39,6 +39,41 @@ public class Vector2
 		this.y = v.y;
 	}
 	
+	Vector2(float theta)
+	{
+		this.x = (float)Math.cos(theta);
+		this.y = (float)Math.sin(theta);
+	}
+	
+	Vector2(LuaValue arg0, LuaValue arg1)
+	{
+		LuaValue xlv = arg0;
+		LuaValue ylv = arg1;
+		if(arg0.istable())
+		{
+			LuaValue vector = arg0.get("position");
+			if(vector.isnil())
+			{
+				vector = arg0;
+			}
+			if(vector.istable())
+			{
+				xlv = vector.get("x");
+				ylv = vector.get("y");
+			}
+		}
+		if(xlv.isnumber() && ylv.isnumber())
+		{
+			this.x = xlv.tofloat();
+			this.y = ylv.tofloat();
+		}
+		else
+		{
+			this.x = Float.NaN;
+			this.y = Float.NaN;
+		}
+	}
+	
 	@Override
 	public boolean equals(Object o)
 	{

@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.text.NumberFormat;
 import java.util.Scanner;
@@ -32,10 +33,12 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
+import com.github.joshuasrjc.functionfighters.game.Fighter;
 import com.github.joshuasrjc.functionfighters.game.Game;
 import com.github.joshuasrjc.functionfighters.network.Client;
 import com.github.joshuasrjc.functionfighters.network.ClientListener;
 import com.github.joshuasrjc.functionfighters.network.Frame;
+import com.github.joshuasrjc.functionfighters.network.Packet;
 import com.github.joshuasrjc.functionfighters.network.Server;
 import com.github.joshuasrjc.functionfighters.network.ServerListener;
 import com.github.joshuasrjc.functionfighters.ui.ChatLog;
@@ -45,7 +48,7 @@ import com.github.joshuasrjc.functionfighters.ui.Sprites;
 
 public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener
 {
-	public static final int DEFAULT_PORT = 7071;
+	public static final int DEFAULT_PORT = 7070;
 	
 	public static void main(String[] args)
 	{
@@ -67,6 +70,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	{
 		server = new Server();
 		game = new Game(server);
+		server.addServerListener(game);
 		
 		server.addServerListener(this);
 		server.addClientListener(this);
@@ -98,9 +102,11 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		frame.add(menuBar, BorderLayout.NORTH);
 		
 		chatLog = new ChatLog(this);
+		server.addClientListener(chatLog);
 		chatLog.CHAT_FIELD.setEnabled(false);
 		
-		gameViewer = new GameViewer(this);
+		gameViewer = new GameViewer(server);
+		server.addClientListener(gameViewer);
 		
 		JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chatLog, gameViewer);
 		frame.add(splitPane, BorderLayout.CENTER);
@@ -108,7 +114,6 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		frame.setVisible(true);
 		
 		fileChooser = new JFileChooser();
-		fileChooser.addActionListener(this);
 		FileNameExtensionFilter filter = new FileNameExtensionFilter("Scripts (.lua)", "lua");
 		fileChooser.setFileFilter(filter);
 	}
@@ -128,66 +133,22 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	}
 
 	@Override
-	public void onClientSentMessage(Client client, String message)
+	public void onClientSentPacket(Client client, Packet packet)
 	{
-		
-	}
-	
-	@Override
-	public void onClientSentByte(Client client, byte b)
-	{
-		if(b == Server.GAME_START)
+		if(packet.isMessage())
 		{
-			if(!game.isRunning())
-			{
-				if(game.start()) server.sendByteToAllClients(Server.GAME_START);
-			}
-			else if(game.isPaused())
-			{
-				game.resume();
-				server.sendByteToAllClients(Server.GAME_START);
-			}
-			else
-			{
-				client.sendMessage(Server.ERROR, "A game is already running.");
-			}
+			String message = packet.getMessage();
+			String nickname = client.getNickname();
+			server.sendPacketToAllClients(new Packet(packet.type, nickname + ": " +  message));
 		}
-		else if(b == Server.GAME_PAUSE)
+		else if(packet.type == Packet.SCRIPT)
 		{
-			if(game.isRunning())
-			{
-				if(!game.isPaused())
-				{
-					game.pause();
-					server.sendByteToAllClients(Server.GAME_PAUSE);
-				}
-				else
-				{
-					client.sendMessage(Server.ERROR, "The game is already paused.");
-				}
-			}
-			else
-			{
-				client.sendMessage(Server.ERROR, "No game is running.");
-			}
-		}
-		else if(b == Server.GAME_STOP)
-		{
-			if(game.isRunning())
-			{
-				game.stop();
-				System.out.println("Game stop.");
-				server.sendByteToAllClients(Server.GAME_STOP);
-			}
-			else
-			{
-				client.sendMessage(Server.ERROR, "No game is running.");
-			}
+			
 		}
 	}
 	
 	@Override
-	public void onClientConnect()
+	public void onConnectToServer()
 	{
 		menuBar.LOAD.setEnabled(true);
 		menuBar.HOST.setEnabled(false);
@@ -199,7 +160,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	}
 	
 	@Override
-	public void onClientDisconnect()
+	public void onDisconnectFromServer()
 	{
 		menuBar.LOAD.setEnabled(false);
 		menuBar.HOST.setEnabled(!server.isHosting());
@@ -210,69 +171,39 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		menuBar.STOP.setEnabled(false);
 		chatLog.CHAT_FIELD.setEnabled(false);
 	}
-	
+
 	@Override
-	public void onServerSentMessage(byte type, String message)
+	public void onServerSentPacket(Packet packet)
 	{
-		switch(type)
+		int type = packet.type;
+		if(type == Packet.GAME_START)
 		{
-		case Server.INFO: ChatLog.logInfo(message); break;
-		case Server.CHAT: ChatLog.logChat(message); break;
-		case Server.ERROR: ChatLog.logError(message); break;
-		case Server.CODE: ChatLog.logCode(message); break;
-		default: ChatLog.logInfo(message); break;
+			menuBar.START.setEnabled(false);
+			menuBar.PAUSE.setEnabled(true);
+			menuBar.STOP.setEnabled(true);
 		}
+		else if(type == Packet.GAME_PAUSE)
+		{
+			gameViewer.setSelectionMode(false);
+			menuBar.START.setEnabled(true);
+			menuBar.PAUSE.setEnabled(false);
+			menuBar.STOP.setEnabled(true);
+		}
+		else if(type == Packet.GAME_STOP)
+		{
+			menuBar.START.setEnabled(true);
+			menuBar.PAUSE.setEnabled(false);
+			menuBar.STOP.setEnabled(false);
+		} 
 	}
 	
-	@Override
-	public void onServerSentItem(String name)
-	{
-		gameViewer.addItem(name);
-	}
-	
-	@Override
-	public void onServerRemovedItem(int index)
-	{
-		
-	}
-	
-	@Override
-	public void onServerSentSelection(int index, int team)
-	{
-		gameViewer.selectItem(index, team);
-	}
-	
+	/*
 	@Override
 	public void onServerSentFrame(Frame frame)
 	{
 		gameViewer.addFrame(frame);
 	}
-	
-	@Override
-	public void onServerSentByte(byte b)
-	{
-		if(b == Server.GAME_START)
-		{
-			gameViewer.setSelectionMode(false);
-			menuBar.START.setEnabled(false);
-			menuBar.PAUSE.setEnabled(true);
-			menuBar.STOP.setEnabled(true);
-		}
-		else if(b == Server.GAME_PAUSE)
-		{
-			gameViewer.setSelectionMode(false);
-			menuBar.START.setEnabled(true);
-			menuBar.PAUSE.setEnabled(false);
-			menuBar.STOP.setEnabled(true);
-		}
-		else if(b == Server.GAME_STOP)
-		{
-			gameViewer.setSelectionMode(true);
-			menuBar.START.setEnabled(true);
-			menuBar.PAUSE.setEnabled(false);
-			menuBar.STOP.setEnabled(false);
-		}
-	}
+	*/
 
 	@Override
 	public void valueChanged(ListSelectionEvent ev)
@@ -281,7 +212,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		{
 			int index = ev.getFirstIndex();
 			int team = Integer.parseInt(((Component)ev.getSource()).getName());
-			server.sendItemSelectionToServer(index, team);
+			server.sendPacketToServer(new Packet(Packet.ITEM_SELECT, index, team));
 		}
 	}
 
@@ -292,7 +223,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 
 		if(src == menuBar.LOAD)
 		{
-			fileChooser.showOpenDialog(frame);
+			load();
 		}
 		else if(src == menuBar.HOST)
 		{
@@ -312,62 +243,57 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		}
 		else if(src == menuBar.START)
 		{
-			server.sendByteToServer(Server.GAME_START);
+			server.sendPacketToServer(new Packet(Packet.GAME_START));
 		}
 		else if(src == menuBar.PAUSE)
 		{
-			server.sendByteToServer(Server.GAME_PAUSE);
+			server.sendPacketToServer(new Packet(Packet.GAME_PAUSE));
 		}
 		else if(src == menuBar.STOP)
 		{
-			server.sendByteToServer(Server.GAME_STOP);
+			server.sendPacketToServer(new Packet(Packet.GAME_STOP));
 		}
 		else if(src == chatLog.CHAT_FIELD)
 		{
 			chat();
 		}
-		else if(src == fileChooser)
-		{
-			load();
-		}
 	}
 	
 	public void load()
 	{
-		File file = fileChooser.getSelectedFile();
-		
-		if(!file.exists() || !file.isFile())
+		int option = fileChooser.showOpenDialog(frame);
+		if(option == JFileChooser.APPROVE_OPTION)
 		{
-			ChatLog.logError("That file does not exist.");
-			return;
-		}
-		if(!file.canRead())
-		{
-			ChatLog.logError("That file is not readable.");
-			return;
-		}
-		if(file.length() > Server.MAX_MESSAGE_LENGTH)
-		{
-			ChatLog.logError("That file exceeds the maximum size.");
-			return;
-		}
-		
-		try
-		{
-			String name = file.getName();
-			String text = "";
-			FileInputStream in = new FileInputStream(file);
-			Scanner scanner = new Scanner(in);
-			while(scanner.hasNext())
+			File file = fileChooser.getSelectedFile();
+			
+			if(!file.exists() || !file.isFile())
 			{
-				text += scanner.nextLine() + ' ';
+				ChatLog.logError("That file does not exist.");
+				return;
 			}
-			//text += '\n';
-			server.sendMessageToServer(Server.SCRIPT, name + '\n' + text);
-		}
-		catch(IOException ex)
-		{
-			ChatLog.logError("Error reading file.");
+			if(!file.canRead())
+			{
+				ChatLog.logError("That file is not readable.");
+				return;
+			}
+			
+			try
+			{
+				String name = file.getName();
+				String text = "";
+				FileInputStream in = new FileInputStream(file);
+				Scanner scanner = new Scanner(in);
+				while(scanner.hasNext())
+				{
+					text += scanner.nextLine() + '\n';
+				}
+				scanner.close();
+				server.sendPacketToServer(new Packet(Packet.SCRIPT, name + '\n' + text));
+			}
+			catch(IOException ex)
+			{
+				ChatLog.logError("Error reading file.");
+			}
 		}
 	}
 	
@@ -377,7 +303,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		JTextField portField = new JFormattedTextField("" + DEFAULT_PORT);
 		JPasswordField passwordField = new JPasswordField();
 		Object[] fields = {
-				"Nickname: ", nicknameField,
+				"Your Nickname: ", nicknameField,
 				"Port: ", portField,
 				"Password: ", passwordField
 		};
@@ -427,12 +353,12 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	public void connect()
 	{
 		JTextField nicknameField = new JTextField();
-		JTextField addressField = new JTextField();
+		JTextField addressField = new JTextField("localhost");
 		JTextField portField = new JTextField("" + DEFAULT_PORT);
 		JPasswordField passwordField = new JPasswordField();
 		
 		Object[] fields = {
-			"Nickname: ", nicknameField,
+			"Your Nickname: ", nicknameField,
 			"Server Address: ", addressField,
 			"Port: ", portField,
 			"Password: ", passwordField
@@ -483,6 +409,9 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	{
 		String message = chatLog.CHAT_FIELD.getText();
 		chatLog.CHAT_FIELD.setText("");
-		server.sendMessageToServer(Server.CHAT, message);
+		server.sendPacketToServer(new Packet(Packet.CHAT, message));
 	}
+
+	@Override public void onClientConnected(Client client) {}
+	@Override public void onClientDisconnected(Client client) {}
 }

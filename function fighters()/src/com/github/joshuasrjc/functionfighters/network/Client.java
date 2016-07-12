@@ -41,73 +41,36 @@ public class Client
 			{
 				try
 				{
-					byte b = io.readByte();
-					if(b != Server.PASSWORD) throw new IOException();
-					String password = io.readLine();
-					
-					b = io.readByte();
-					if(b != Server.NICKNAME) throw new IOException();
-					String nickname = io.readLine();
-					
-					//ChatLog.logInfo("Player [" + nickname + "] attempted to join with password [" + password + "]");
-					
-					if(!server.matchesPassword(password))
+					Packet loginPacket = io.readPacket();
+					if(loginPacket.type == Packet.LOGIN)
 					{
-						io.writeByte(Server.BAD_PASSWORD);
-						io.flush();
-						disconnect();
-					}
-					if(server.isNicknameTaken(nickname))
-					{
-						io.writeByte(Server.BAD_NICKNAME);
-						io.flush();
-						disconnect();
-					}
-					else
-					{
-						client.nickname = nickname;
-						io.writeByte(Server.ACCEPTED);
-						io.flush();
-						
-						server.sendMessageToAllClients(Server.INFO, "Player [" + nickname + "] has connected.");
-						
-						while(connected)
+						String nickname = loginPacket.getFirstLine();
+						String password = loginPacket.getAllButFirstLine();
+						if(!server.isValidNickname(nickname))
 						{
-							b = io.readByte();
-							//System.out.println(b);
-							if(b < 0x10)
+							sendPacket(new Packet(Packet.BAD_NICKNAME));
+							disconnect();
+						}
+						if(!server.matchesPassword(password))
+						{
+							sendPacket(new Packet(Packet.BAD_PASSWORD));
+							disconnect();
+						}
+						else
+						{
+							client.nickname = nickname;
+							sendPacket(new Packet(Packet.ACCEPTED));
+							server.onClientConnected(client);
+							while(connected)
 							{
-								String message = io.readLine();
-								server.onClientSentMessage(client, message, b);
-							}
-							else if(b == Server.SCRIPT)
-							{
-								String name = io.readLine();
-								String text = io.readLine();
-								server.onClientSentScript(client, name, text);
-							}
-							else if(b == Server.ITEM_REMOVE)
-							{
-								int index = Server.unsignByte(io.readByte());
-								server.onClientSentItemRemoval(index);
-							}
-							else if(b == Server.ITEM_SELECT)
-							{
-								int index = Server.unsignByte(io.readByte());
-								int team = Server.unsignByte(io.readByte());
-								server.onClientSentItemSelection(index, team);
-							}
-							else
-							{
-								server.onClientSentByte(client, b);
+								Packet packet = io.readPacket();
+								server.onClientSentPacket(client, packet);
 							}
 						}
 					}
 				}
-				catch (IOException e)
-				{
-					if(connected) disconnect();
-				}
+				catch (IOException e) {}
+				if(connected) disconnect();
 			}
 			// </Separate Thread> //
 			
@@ -115,78 +78,13 @@ public class Client
 		thread.start();
 	}
 	
-	public void sendMessage(byte type, String message)
+	public void sendPacket(Packet packet)
 	{
 		try
 		{
-			io.writeByte(type);
-			io.writeString(message);
-			io.newLine();
-			io.flush();
+			io.writePacket(packet);
 		}
-		catch(Exception e)
-		{
-			ChatLog.logError("Unable to reach client.");
-			disconnect();
-		}
-	}
-	
-	public void sendFrame(Frame frame)
-	{
-		try
-		{
-			io.writeByte(Server.FRAME);
-			io.writeByte(Server.signByte(frame.index));
-			io.writeByte(Server.signByte(frame.bytes.length / GameObject.BYTE_SIZE));
-			io.writeBytes(frame.bytes);
-			io.flush();
-		}
-		catch(Exception e)
-		{
-			ChatLog.logError("Unable to reach client.");
-			disconnect();
-		}
-	}
-	
-	public void sendItemRemoval(int index)
-	{
-		try
-		{
-			io.writeByte(Server.ITEM_REMOVE);
-			io.writeByte(Server.signByte(index));
-			io.flush();
-		}
-		catch(Exception e)
-		{
-			ChatLog.logError("Unable to reach client.");
-			disconnect();
-		}
-	}
-	
-	public void sendItemSelection(int index, int team)
-	{
-		try
-		{
-			io.writeByte(Server.ITEM_SELECT);
-			io.writeByte(Server.signByte(index));
-			io.writeByte(Server.signByte(team));
-			io.flush();
-		}
-		catch(Exception e)
-		{
-			ChatLog.logError("Unable to reach client.");
-			disconnect();
-		}
-	}
-	
-	public void sendByte(byte b)
-	{
-		try
-		{
-			io.writeByte(b);
-			io.flush();
-		}
-		catch(Exception e)
+		catch(Exception ex)
 		{
 			ChatLog.logError("Unable to reach client.");
 			disconnect();

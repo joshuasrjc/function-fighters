@@ -18,7 +18,10 @@ import javax.swing.text.Style;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyleContext;
 
-public class ChatLog extends JPanel
+import com.github.joshuasrjc.functionfighters.network.ClientListener;
+import com.github.joshuasrjc.functionfighters.network.Packet;
+
+public class ChatLog extends JPanel implements ClientListener
 {
 	public static final Dimension MIN_SIZE = new Dimension(64,64);
 	public static final Dimension DEFAULT_SIZE = new Dimension(400, 600);
@@ -27,20 +30,20 @@ public class ChatLog extends JPanel
 	private static ArrayList<ChatLog> logs = new ArrayList<ChatLog>();
 	
 	private static final StyleContext STYLE_CONTEXT = new StyleContext();
-	private static final Style ERROR_STYLE = STYLE_CONTEXT.addStyle("Error", null);
 	private static final Style INFO_STYLE = STYLE_CONTEXT.addStyle("Info", null);
+	private static final Style ERROR_STYLE = STYLE_CONTEXT.addStyle("Error", null);
 	private static final Style CHAT_STYLE = STYLE_CONTEXT.addStyle("Chat", null);
 	private static final Style CODE_STYLE = STYLE_CONTEXT.addStyle("Code", null);
 	
 	public static void initStyles()
 	{
-		ERROR_STYLE.addAttribute(StyleConstants.Foreground, Color.RED);
-		ERROR_STYLE.addAttribute(StyleConstants.FontSize, 14);
-		ERROR_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
-		
 		INFO_STYLE.addAttribute(StyleConstants.Foreground, Color.BLUE);
 		INFO_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		INFO_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
+
+		ERROR_STYLE.addAttribute(StyleConstants.Foreground, Color.RED);
+		ERROR_STYLE.addAttribute(StyleConstants.FontSize, 14);
+		ERROR_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 		
 		CHAT_STYLE.addAttribute(StyleConstants.Foreground, Color.BLACK);
 		CHAT_STYLE.addAttribute(StyleConstants.FontSize, 14);
@@ -139,5 +142,34 @@ public class ChatLog extends JPanel
 		scrollPane.revalidate();
 		JScrollBar sb = scrollPane.getVerticalScrollBar();
 		sb.setValue(sb.getMaximum());
+	}
+
+	@Override
+	public void onConnectToServer()
+	{
+		logInfo("Connected to server.");
+	}
+
+	@Override
+	public void onDisconnectFromServer()
+	{
+		logInfo("Disconnected from server.");
+	}
+
+	@Override
+	public void onServerSentPacket(Packet packet)
+	{
+		if(packet.isMessage())
+		{
+			int type = packet.type;
+			String message = packet.getMessage();
+			switch(type)
+			{
+			case Packet.INFO: log(message, INFO_STYLE); break;
+			case Packet.ERROR: log(message, ERROR_STYLE); break;
+			case Packet.CHAT: log(message, CHAT_STYLE); break;
+			case Packet.CODE: log(message, CODE_STYLE); break;
+			}
+		}
 	}
 }

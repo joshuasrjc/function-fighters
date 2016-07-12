@@ -6,30 +6,15 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 
 public class BufferedIO
-{
-	public static String byteToString(byte b)
+{	
+	private static int unsignByte(byte b)
 	{
-		byte r = (byte)(0x0F & b);
-		if(r < 0xA) r += '0';
-		else r += 'A' - 0xA;
-		
-		b >>= 4;
-		
-		byte l = (byte)(0x0F & b);
-		if(l < 0xA) l += '0';
-		else l += 'A' - 0xA;
-		
-		return "" + (char)l + (char)r;
+		return (int)(b & 0xFF);
 	}
 	
-	public static String bytesToString(byte[] bytes)
+	private static byte signByte(int i)
 	{
-		String str = "";
-		for(byte b : bytes)
-		{
-			str += byteToString(b) + " ";
-		}
-		return str;
+		return (byte)(i);
 	}
 	
 	private BufferedInputStream in;
@@ -47,37 +32,46 @@ public class BufferedIO
 		out.close();
 	}
 	
-	public void flush() throws IOException
+	public void writePacket(Packet packet) throws IOException
 	{
+		writeByte(signByte(packet.type));
+		writeShort((short)packet.data.length);
+		writeBytes(packet.data);
 		out.flush();
 	}
 	
-	public void writeByte(byte b) throws IOException
+	public Packet readPacket() throws IOException
+	{
+		int type = unsignByte(readByte());
+		int size = readShort();
+		byte[] data = new byte[0];
+		if(size > 0)
+		{
+			data = readBytes(size);
+		}
+		return new Packet(type, data);
+	}
+	
+	private void writeByte(byte b) throws IOException
 	{
 		out.write(b);
 	}
 	
-	public void writeBytes(byte[] bytes) throws IOException
+	private void writeShort(short s) throws IOException
+	{
+		ByteBuffer buffer = ByteBuffer.allocate(2);
+		buffer.putShort(s);
+		buffer.rewind();
+		writeByte(buffer.get());
+		writeByte(buffer.get());
+	}
+	
+	private void writeBytes(byte[] bytes) throws IOException
 	{
 		out.write(bytes);
 	}
 	
-	public void writeBytes(ByteBuffer buffer) throws IOException
-	{
-		writeBytes(buffer.array());
-	}
-	
-	public void writeString(String str) throws IOException
-	{
-		out.write(str.getBytes(), 0, str.length());
-	}
-	
-	public void newLine() throws IOException
-	{
-		out.write('\n');
-	}
-	
-	public byte readByte() throws IOException
+	private byte readByte() throws IOException
 	{
 		int i = in.read();
 		if(i < 0) throw new IOException();
@@ -85,7 +79,16 @@ public class BufferedIO
 		return (byte)i;
 	}
 	
-	public byte[] readBytes(int nBytes) throws IOException
+	private short readShort() throws IOException
+	{
+		ByteBuffer buffer = ByteBuffer.allocate(2);
+		buffer.put(readByte());
+		buffer.put(readByte());
+		buffer.rewind();
+		return buffer.getShort();
+	}
+	
+	private byte[] readBytes(int nBytes) throws IOException
 	{
 		byte[] bytes = new byte[nBytes];
 		int read = 0;
@@ -95,17 +98,5 @@ public class BufferedIO
 		}
 		
 		return bytes;
-	}
-	
-	public String readLine() throws IOException
-	{
-		String str = "";
-		for(int i = in.read(); i != '\n'; i = in.read())
-		{
-			if(i < 0) throw new IOException();
-			str += (char)i;
-		}
-		
-		return str;
 	}
 }
