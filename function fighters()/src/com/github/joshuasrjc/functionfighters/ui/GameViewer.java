@@ -211,7 +211,6 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 			g2d.setStroke(new BasicStroke(2));
 			g2d.setColor(Color.BLACK);
 			g2d.drawRect((int)(Game.LEFT), (int)(Game.TOP), (int)(Game.RIGHT - Game.LEFT), (int)(Game.BOTTOM - Game.TOP));
-			g2d.drawLine(0, 0, (int)Game.RIGHT, 0);
 			
 			if(currentFrame != null)
 			{

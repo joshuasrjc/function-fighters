@@ -7,8 +7,9 @@ import java.util.ArrayList;
 
 import javax.swing.JPanel;
 
+import org.luaj.vm2.LuaDouble;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.*;
 
 import com.github.joshuasrjc.functionfighters.network.Client;
 import com.github.joshuasrjc.functionfighters.network.Frame;
@@ -32,12 +33,35 @@ public class Game implements Runnable, ServerListener
 		lv.set("nTeams", N_TEAMS);
 		lv.set("nFightersPerTeam", N_FIGHTERS_PER_TEAM);
 		lv.set("time", time);
+		
+		lv.set("getDistanceTo", gf.getDistanceTo);
+		lv.set("getDirectionTo", gf.getDirectionTo);
+		
+		lv.set("getFighters", gf.getFighters); 
+		lv.set("getAllies", gf.getAllies);
+		lv.set("getEnemies", gf.getEnemies);
+		
+		lv.set("findClosestFighter", gf.findClosestFighter);
+		lv.set("findClosestAlly", gf.findClosestAlly);
+		lv.set("findClosestEnemy", gf.findClosestEnemy);
+		
+		lv.set("findFarthestFighter", gf.findFarthestFighter);
+		lv.set("findFarthestAlly", gf.findFarthestAlly);
+		lv.set("findFarthestEnemy", gf.findFarthestEnemy);
+		
+		lv.set("findWeakestFighter", gf.findWeakestFighter);
+		lv.set("findWeakestAlly", gf.findWeakestAlly);
 		lv.set("findWeakestEnemy", gf.findWeakestEnemy);
+		
+		lv.set("findStrongestFighter", gf.findStrongestFighter);
+		lv.set("findStrongestAlly", gf.findStrongestAlly);
+		lv.set("findStrongestEnemy", gf.findStrongestEnemy);
+		
 		return lv;
 	}
 	
 	public static final int N_TEAMS = 2;
-	public static final int N_FIGHTERS_PER_TEAM = 1;
+	public static final int N_FIGHTERS_PER_TEAM = 3;
 	public static final long FRAME_MILLIS = 20;
 	
 	public static final float TOP = -300;
@@ -61,10 +85,11 @@ public class Game implements Runnable, ServerListener
 	private Thread thread;
 	
 	public ArrayList<GameObject> objects = new ArrayList<GameObject>();
-	public Fighter[][] fighters = new Fighter[N_TEAMS][N_FIGHTERS_PER_TEAM];
+	public ArrayList<Fighter> fighters = new ArrayList<Fighter>();
+	
 	public Vector2[][] positions = {
-		{new Vector2(-400, 200)},
-		{new Vector2(400, -200)}
+		{new Vector2(-400, 0), new Vector2(-400, -200), new Vector2(-400, 200)},
+		{new Vector2(400, 0), new Vector2(400, 200), new Vector2(400, -200)}
 	};
 	
 	int frameIndex = 0;
@@ -200,7 +225,7 @@ public class Game implements Runnable, ServerListener
 			for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
 			{
 				Fighter fighter = new Fighter(this, positions[team][id], team, id, scripts[team], server);
-				fighters[team][id] = fighter;
+				fighters.add(fighter);
 				objects.add(fighter);
 			}
 		}
@@ -276,6 +301,7 @@ public class Game implements Runnable, ServerListener
 	{
 		while(gameRunning)
 		{
+			
 			preUpdate();
 			update();
 			postUpdate();
@@ -300,38 +326,84 @@ public class Game implements Runnable, ServerListener
 		return gamePaused;
 	}
 	
-	private float getRayCastDistance(Vector2 start, Vector2 dir, GameObject obj)
+	private float getRayCastDistance(Vector2 start, Vector2 dir, float radius, GameObject obj)
 	{
-		Vector2 v1 = obj.position.minus(start);
-		float dist = v1.getMagnitude();
-		float radius = obj.getRadius();
+		float a = start.x;
+		float b = start.y;
+		float c = dir.x;
+		float d = dir.y;
+		float h = obj.position.x;
+		float k = obj.position.y;
+		float r = obj.getRadius() + radius;
 		
-		if(dist <= radius) return dist;
+		float a2 = a*a;
+		float b2 = b*b;
+		float c2 = c*c;
+		float d2 = d*d;
+		float h2 = h*h;
+		float k2 = k*k;
+		float r2 = r*r;
 		
-		v1.divide(dist);
-		float cos = v1.dot(dir);
+		float radicand = (d2 + c2)*r2 - c2*k2 + (2*c*d*h - 2*a*c*d + 2*b*c2)*k - d2*h2 + (2*a*d2 - 2*b*c*d)*h - a2*d2 + 2*a*b*c*d - b2*c2;
+		if(radicand < 0f) return Float.NaN;
 		
-		if(cos <= 0f) return -1f;
+		float root = (float)Math.sqrt(radicand);
+		float addend = d*k + c*h - b*d - a*c;
+		float divisor = d2 + c2;
 		
-		float hyp = new Vector2(dist, radius).getMagnitude();
-		float minCos = dist / hyp;
+		float t1 = (-root + addend) / divisor;
+		float t2 = (root + addend) / divisor;
 		
-		if(cos > minCos) return dist;
+		float dist1 = Float.NaN;
+		float dist2 = Float.NaN;
 		
-		return -1f;
+		if(t1 >= 0 && t1 <= 1)
+		{
+			Vector2 p1 = new Vector2(a + c*t1, b + d*t1);
+			dist1 = p1.minus(start).getMagnitude();
+		}
+		
+		if(t2 >= 0 && t2 <= 1)
+		{
+			Vector2 p2 = new Vector2(a + c*t2, b + d*t2);
+			dist2 = p2.minus(start).getMagnitude();
+		}
+		
+		if(Float.isNaN(dist1) && Float.isNaN(dist2))
+		{
+			return Float.NaN;
+		}
+		else if(Float.isNaN(dist1))
+		{
+			return dist2;
+		}
+		else if(Float.isNaN(dist2))
+		{
+			return dist1;
+		}
+		else if(dist1 <= dist2)
+		{
+			return dist1;
+		}
+		else if(dist2 < dist1)
+		{
+			return dist2;
+		}
+		
+		return Float.NaN;
 	}
 	
-	public GameObject castRay(Vector2 start, Vector2 dir, RayCastFilter filter)
+	public GameObject castRay(Vector2 start, Vector2 dir, float radius, RayCastFilter filter)
 	{
 		GameObject closestObject = null;
 		float closestDistance = Float.MAX_VALUE;
 		for(int i = 0; i < objects.size(); i++)
 		{
 			GameObject obj = objects.get(i);
-			if(filter.doTest(obj))
+			if(filter == null || filter.doTest(obj))
 			{
-				float distance = getRayCastDistance(start, dir, obj);
-				if(distance >= 0f && distance < closestDistance)
+				float distance = getRayCastDistance(start, dir, radius, obj);
+				if(!Float.isNaN(distance) && distance < closestDistance)
 				{
 					closestDistance = distance;
 					closestObject = obj;
@@ -340,89 +412,278 @@ public class Game implements Runnable, ServerListener
 		}
 		return closestObject;
 	}
+	
+	public float getDistanceBetween(GameObject obj1, GameObject obj2)
+	{
+		return obj1.position.minus(obj2.position).getMagnitude();
+	}
 
 	private class GameFunctions
 	{
 		Fighter fighter;
+		GameFunctions functions = this;
+		
+		private static final int FIGHTERS = 0;
+		private static final int ALLIES = 1;
+		private static final int ENEMIES = 2;
 		
 		GameFunctions(Fighter fighter)
 		{
 			this.fighter = fighter;
 		}
 		
-		public LuaValue getFighters = new ZeroArgFunction() { @Override public LuaValue call()
+		private Fighter[] get(int team)
 		{
-			ArrayList<LuaValue> lvFighters = new ArrayList<LuaValue>();
-			for(int team = 0; team < N_TEAMS; team++)
+			ArrayList<Fighter> fighterList = new ArrayList<Fighter>();
+			for(int i = 0; i < fighters.size(); i++)
 			{
-				for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
+				Fighter f = fighters.get(i);
+				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
 				{
-					Fighter f = fighters[team][id];
-					if(f.health > 0)
+					fighterList.add(f);
+				}
+			}
+			return fighterList.toArray(new Fighter[fighterList.size()]);
+		}
+		
+		private Fighter findClosest(int team)
+		{
+			Fighter closestFighter = null;
+			float shortestDistance = Float.MAX_VALUE;
+			for(int i = 0; i < fighters.size(); i++)
+			{
+				Fighter f = fighters.get(i);
+				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
+				{
+					float distance = getDistanceBetween(f, fighter);
+					if(distance < shortestDistance)
 					{
-						lvFighters.add(f.toLuaValue());
+						shortestDistance = distance;
+						closestFighter = f;
 					}
 				}
 			}
-			
-			return LuaValue.listOf(lvFighters.toArray(new LuaValue[lvFighters.size()]));
+			return closestFighter;
+		}
+		
+		private Fighter findFarthest(int team)
+		{
+			Fighter farthestFighter = null;
+			float longestDistance = Float.MIN_VALUE;
+			for(int i = 0; i < fighters.size(); i++)
+			{
+				Fighter f = fighters.get(i);
+				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
+				{
+					float distance = getDistanceBetween(f, fighter);
+					if(distance > longestDistance)
+					{
+						longestDistance = distance;
+						farthestFighter = f;
+					}
+				}
+			}
+			return farthestFighter;
+		}
+		
+		private Fighter findWeakest(int team)
+		{
+			Fighter weakestFighter = null;
+			float lowestHealth = Float.MAX_VALUE;
+			for(int i = 0; i < fighters.size(); i++)
+			{
+				Fighter f = fighters.get(i);
+				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
+				{
+					float health = f.health;
+					if(health < lowestHealth)
+					{
+						lowestHealth = health;
+						weakestFighter = f;
+					}
+				}
+			}
+			return weakestFighter;
+		}
+		
+		private Fighter findStrongest(int team)
+		{
+			Fighter strongestFighter = null;
+			float highestHealth = Float.MIN_VALUE;
+			for(int i = 0; i < fighters.size(); i++)
+			{
+				Fighter f = fighters.get(i);
+				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
+				{
+					float health = f.health;
+					if(health > highestHealth)
+					{
+						highestHealth = health;
+						strongestFighter = f;
+					}
+				}
+			}
+			return strongestFighter;
+		}
+		
+		
+		
+		
+		public LuaValue getDistanceTo = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+		{
+			Vector2 p = new Vector2(arg0, arg1);
+			p.subtract(fighter.position);
+			return LuaValue.valueOf(p.getMagnitude());
+		}};
+		
+		public LuaValue getDirectionTo = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+		{
+			Vector2 p = new Vector2(arg0, arg1);
+			p.subtract(fighter.position);
+			return LuaValue.valueOf(Math.atan2(p.y, p.x));
+		}};
+		
+		
+		
+		
+		public LuaValue getFighters = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter[] fighters = functions.get(FIGHTERS);
+			LuaValue[] lvs = new LuaValue[fighters.length];
+			for(int i = 0; i < lvs.length; i++)
+			{
+				if(fighters[i].team == fighter.team)
+				{
+					lvs[i] = fighters[i].toLuaValue(Fighter.ALLY);
+				}
+				else
+				{
+					lvs[i] = fighters[i].toLuaValue(Fighter.ENEMY);
+				}
+			}
+			return LuaValue.listOf(lvs);
 		}};
 		
 		public LuaValue getAllies = new ZeroArgFunction() { @Override public LuaValue call()
 		{
-			ArrayList<LuaValue> lvFighters = new ArrayList<LuaValue>();
-			for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
+			Fighter[] fighters = functions.get(ALLIES);
+			LuaValue[] lvs = new LuaValue[fighters.length];
+			for(int i = 0; i < lvs.length; i++)
 			{
-				Fighter f = fighters[fighter.team][id];
-				if(f.health > 0)
-				{
-					lvFighters.add(f.toLuaValue());
-				}
+				lvs[i] = fighters[i].toLuaValue(Fighter.ALLY);
 			}
-			
-			return LuaValue.listOf(lvFighters.toArray(new LuaValue[lvFighters.size()]));
+			return LuaValue.listOf(lvs);
 		}};
 		
 		public LuaValue getEnemies = new ZeroArgFunction() { @Override public LuaValue call()
 		{
-			ArrayList<LuaValue> lvFighters = new ArrayList<LuaValue>();
-			for(int team = 0; team < N_TEAMS; team++)
+			Fighter[] fighters = functions.get(ENEMIES);
+			LuaValue[] lvs = new LuaValue[fighters.length];
+			for(int i = 0; i < lvs.length; i++)
 			{
-				if(team != fighter.team)
-				{
-					for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
-					{
-						Fighter f = fighters[fighter.team][id];
-						if(f.health > 0)
-						{
-							lvFighters.add(f.toLuaValue());
-						}
-					}
-				}
+				lvs[i] = fighters[i].toLuaValue(Fighter.ENEMY);
 			}
-			
-			return LuaValue.listOf(lvFighters.toArray(new LuaValue[lvFighters.size()]));
+			return LuaValue.listOf(lvs);
+		}};
+		
+		
+		
+		
+		
+		public LuaValue findClosestFighter = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findClosest(FIGHTERS);
+			LuaValue lv;
+			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
+			else lv = f.toLuaValue(Fighter.ENEMY);
+			return lv;
+		}};
+		
+		public LuaValue findClosestAlly = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findClosest(ALLIES);
+			return f.toLuaValue(Fighter.ALLY);
+		}};
+		
+		public LuaValue findClosestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findClosest(ENEMIES);
+			return f.toLuaValue(Fighter.ENEMY);
+		}};
+		
+		
+		
+		
+		
+		public LuaValue findFarthestFighter = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findFarthest(FIGHTERS);
+			LuaValue lv;
+			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
+			else lv = f.toLuaValue(Fighter.ENEMY);
+			return lv;
+		}};
+		
+		public LuaValue findFarthestAlly = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findFarthest(ALLIES);
+			return f.toLuaValue(Fighter.ALLY);
+		}};
+		
+		public LuaValue findFarthestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findFarthest(ENEMIES);
+			return f.toLuaValue(Fighter.ENEMY);
+		}};
+		
+		
+		
+		
+		
+		public LuaValue findWeakestFighter = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findWeakest(FIGHTERS);
+			LuaValue lv;
+			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
+			else lv = f.toLuaValue(Fighter.ENEMY);
+			return lv;
+		}};
+		
+		public LuaValue findWeakestAlly = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findWeakest(ALLIES);
+			return f.toLuaValue(Fighter.ALLY);
 		}};
 		
 		public LuaValue findWeakestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
 		{
-			Fighter weakestEnemy = null;
-			for(int team = 0; team < N_TEAMS; team++)
-			{
-				if(team != fighter.team)
-				{
-					for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
-					{
-						Fighter enemy = fighters[team][id];
-						if(enemy.health > 0 && (weakestEnemy == null || enemy.health < weakestEnemy.health))
-						{
-							weakestEnemy = enemy;
-						}
-					}
-				}
-			}
-			if(weakestEnemy != null) return weakestEnemy.toLuaValue();
-			else return NIL;
+			Fighter f = findWeakest(ENEMIES);
+			return f.toLuaValue(Fighter.ENEMY);
+		}};
+		
+		
+		
+		
+		
+		public LuaValue findStrongestFighter = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findStrongest(FIGHTERS);
+			LuaValue lv;
+			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
+			else lv = f.toLuaValue(Fighter.ENEMY);
+			return lv;
+		}};
+		
+		public LuaValue findStrongestAlly = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findStrongest(ALLIES);
+			return f.toLuaValue(Fighter.ALLY);
+		}};
+		
+		public LuaValue findStrongestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter f = findStrongest(ENEMIES);
+			return f.toLuaValue(Fighter.ENEMY);
 		}};
 	}
 

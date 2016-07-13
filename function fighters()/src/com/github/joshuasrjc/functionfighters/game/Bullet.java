@@ -15,9 +15,7 @@ public class Bullet extends GameObject
 		@Override
 		public boolean doTest(GameObject obj)
 		{
-			if(!(obj instanceof Fighter)) return false;
-			if(((Fighter)obj).team == team) return false;
-			return true;
+			return obj instanceof Fighter && ((Fighter)obj).team != team;
 		}
 		
 	};
@@ -47,16 +45,14 @@ public class Bullet extends GameObject
 	}
 	
 	@Override
-	public void postUpdate()
+	public void update()
 	{
-		Vector2 start = position.minus(velocity);
-		Vector2 dir = velocity.normalized();
-		Fighter hitFighter = (Fighter)game.castRay(start, dir, filter);
-		
-		if(hitFighter != null && hitFighter.team != team)
+		Fighter fighter = (Fighter)game.castRay(position, velocity, getRadius(), filter);
+		if(fighter != null)
 		{
-			hitFighter.dealDamage(damage);
+			fighter.dealDamage(damage);
 			destroy();
 		}
+		super.update();
 	}
 }

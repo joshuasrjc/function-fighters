@@ -20,7 +20,6 @@ public class GameObject
 		lv.set("position", position.toLuaValue());
 		lv.set("velocity", velocity.toLuaValue());
 		lv.set("rotation", rotation);
-		lv.set("rotationalVelocity", rotationalVelocity);
 		lv.set("mass", mass);
 		lv.set("elasticity", elasticity);
 		lv.set("friction", friction);
@@ -51,10 +50,9 @@ public class GameObject
 	protected float maxSpeed = -1;
 	
 	protected float rotation;
-	protected float rotationalVelocity;
 	protected float turning;
 	
-	protected float maxRotationalVelocity = -1;
+	protected float maxTurning = -1;
 	
 	protected float mass;
 	protected float elasticity = 1.0f;
@@ -71,7 +69,7 @@ public class GameObject
 		this.velocity = Vector2.zero();
 		this.acceleration = Vector2.zero();
 		this.rotation = 0;
-		this.rotationalVelocity = 0;
+		this.turning = 0;
 		this.turning = 0;
 	}
 	
@@ -83,7 +81,7 @@ public class GameObject
 		this.velocity = Vector2.zero();
 		this.acceleration = Vector2.zero();
 		this.rotation = 0;
-		this.rotationalVelocity = 0;
+		this.turning = 0;
 		this.turning = 0;
 	}
 	
@@ -128,9 +126,8 @@ public class GameObject
 		this.rotation = f;
 	}
 	
-	public void setRotationalVelocity(float f) { this.rotationalVelocity = f; }
 	public void setTurning(float f) { this.turning = f; }
-	public void setMaxRotationalVelocity(float f) { this.maxRotationalVelocity = f; }
+	public void setMaxTurning(float f) { this.maxTurning = f; }
 	public void setElasticity(float f) { this.elasticity = f; }
 	public void setFriction(float f) { this.friction = f; }
 	public void setCanCollide(boolean b) { this.canCollide = b; }
@@ -141,9 +138,8 @@ public class GameObject
 	public Vector2 getAcceleration() { return new Vector2(acceleration); }
 	public float getMaxSpeed(float f) { return maxSpeed; }
 	public float getRotation() { return rotation; }
-	public float getRotationalVelocity() { return rotationalVelocity; }
 	public float getTurning() { return turning; }
-	public float getMaxRotationalVelocity() { return maxRotationalVelocity; }
+	public float getMaxTurning() { return maxTurning; }
 	public float getElasticity() { return elasticity; }
 	public float getFriction() { return friction; }
 	public boolean getCanCollide() { return canCollide; }
@@ -170,7 +166,7 @@ public class GameObject
 		return mass;
 	}
 	
-	public void preUpdate()
+	public void preUpdate() 
 	{
 
 	}
@@ -184,17 +180,17 @@ public class GameObject
 		}
 	}
 	
-	private void clampRotationalVelocity()
+	private void clampTurning()
 	{
-		if(maxRotationalVelocity >= 0)
+		if(maxTurning >= 0)
 		{
-			if(rotationalVelocity > maxRotationalVelocity)
+			if(turning > maxTurning)
 			{
-				rotationalVelocity = maxRotationalVelocity;
+				turning = maxTurning;
 			}
-			else if(rotationalVelocity < -maxRotationalVelocity)
+			else if(turning < -maxTurning)
 			{
-				rotationalVelocity = -maxRotationalVelocity;
+				turning = -maxTurning;
 			}
 		}
 	}
@@ -234,9 +230,8 @@ public class GameObject
 		position.add(velocity);
 		velocity.multiply(1.0f - friction);
 		
-		rotationalVelocity = turning;
-		clampRotationalVelocity();
-		setRotation(rotation + rotationalVelocity);
+		clampTurning();
+		setRotation(rotation + turning);
 		
 		collideWithWalls();
 	}

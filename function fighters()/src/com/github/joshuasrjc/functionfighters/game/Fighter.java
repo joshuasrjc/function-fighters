@@ -9,9 +9,7 @@ import java.nio.ByteBuffer;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.*;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import com.github.joshuasrjc.functionfighters.LuaFunctions;
@@ -49,10 +47,11 @@ public class Fighter extends GameObject
 		lv.set("team", team);
 		lv.set("id", id);
 		lv.set("health", health);
+		lv.set("maxHealth", MAX_HEALTH);
 		lv.set("cooldown", cooldown);
+		lv.set("shootCooldown", SHOOT_COOLDOWN);
 		lv.set("bulletSpeed", BULLET_SPEED);
 		lv.set("bulletDamage", BULLET_DAMAGE);
-		lv.set("shotCooldown", SHOT_COOLDOWN);
 		lv.set("thrust", THRUST);
 		lv.set("turnSpeed", TURN_SPEED);
 	}
@@ -68,6 +67,7 @@ public class Fighter extends GameObject
 		lv.set("moveBackward", moveBackward);
 		lv.set("moveLeft", moveLeft);
 		lv.set("moveRight", moveRight);
+		lv.set("moveToward", moveToward);
 		lv.set("turnLeft", turnLeft);
 		lv.set("turnRight", turnRight);
 		lv.set("turnToward", turnToward);
@@ -79,9 +79,11 @@ public class Fighter extends GameObject
 	public static final int SELF = 2;
 	
 	public static final float FIGHTER_RADIUS = 8;
+	public static final float MAX_HEALTH = 100;
+	
 	public static final float BULLET_SPEED = 50f;
-	public static final float BULLET_DAMAGE = 20f;
-	public static final int SHOT_COOLDOWN = 50;
+	public static final float BULLET_DAMAGE = 25f;
+	public static final int SHOOT_COOLDOWN = 50;
 	public static final float THRUST = 1f;
 	public static final float TURN_SPEED = (float)Math.PI / 20;
 
@@ -246,7 +248,7 @@ public class Fighter extends GameObject
 	{
 		if(cooldown == 0)
 		{
-			cooldown = SHOT_COOLDOWN;
+			cooldown = SHOOT_COOLDOWN;
 			Vector2 bulletPos = this.getPosition();
 			Vector2 look = new Vector2(getRotation());
 			bulletPos.add(look.times(getRadius() + Bullet.BULLET_RADIUS));
@@ -281,13 +283,6 @@ public class Fighter extends GameObject
 		return NIL;
 	}};
 	
-	private LuaValue moveRight = new OneArgFunction() { @Override public LuaValue call(LuaValue speed)
-	{
-		if(speed.isnumber()) self.moveInDirection(self.getRotation() + QUARTER_TURN, speed.tofloat());
-		else self.moveInDirection(self.getRotation() + QUARTER_TURN, 1f);
-		return NIL;
-	}};
-	
 	private LuaValue moveBackward = new OneArgFunction() { @Override public LuaValue call(LuaValue speed)
 	{
 		if(speed.isnumber()) self.moveInDirection(self.getRotation() + 2 * QUARTER_TURN, speed.tofloat());
@@ -299,6 +294,28 @@ public class Fighter extends GameObject
 	{
 		if(speed.isnumber()) self.moveInDirection(self.getRotation() + 3 * QUARTER_TURN, speed.tofloat());
 		else self.moveInDirection(self.getRotation() + 3 * QUARTER_TURN, 1f);
+		return NIL;
+	}};
+	
+	private LuaValue moveRight = new OneArgFunction() { @Override public LuaValue call(LuaValue speed)
+	{
+		if(speed.isnumber()) self.moveInDirection(self.getRotation() + QUARTER_TURN, speed.tofloat());
+		else self.moveInDirection(self.getRotation() + QUARTER_TURN, 1f);
+		return NIL;
+	}};
+	
+	private LuaValue moveToward = new ThreeArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1, LuaValue arg2)
+	{
+		float speed = 1;
+		if(arg2.isnumber()) speed = arg2.tofloat();
+		else if(arg0.istable() && arg1.isnumber()) speed = arg1.tofloat();
+		
+		Vector2 p = new Vector2(arg0, arg1);
+		p.subtract(self.position);
+		p.normalize();
+		p.times(speed);
+		
+		self.addForce(p);
 		return NIL;
 	}};
 	
@@ -318,9 +335,9 @@ public class Fighter extends GameObject
 	
 	private LuaValue turnToward = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
 	{
-		Vector2 v = new Vector2(arg0, arg1);
-		v.subtract(getPosition());
-		float theta = (float)Math.atan2(v.y, v.x);
+		Vector2 p = new Vector2(arg0, arg1);
+		p.subtract(getPosition());
+		float theta = (float)Math.atan2(p.y, p.x);
 		
 		theta -= getRotation();
 		while(theta < -PI) theta += TWOPI;

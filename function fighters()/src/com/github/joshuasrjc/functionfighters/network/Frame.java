@@ -37,17 +37,17 @@ public class Frame
 		{
 			GameObject obj = objects[i];
 			
-			if(obj.getClass().equals(GameObject.class))
-			{
-				data.put(GameObject.OBJECT_ID);
-			}
-			else if(obj.getClass().equals(Fighter.class))
+			if(obj.getClass().equals(Fighter.class))
 			{
 				data.put(GameObject.FIGHTER_ID);
 			}
 			else if(obj.getClass().equals(Bullet.class))
 			{
 				data.put(GameObject.BULLET_ID);
+			}
+			else
+			{
+				data.put(GameObject.OBJECT_ID);
 			}
 			
 			objects[i].toByteBuffer(data);
