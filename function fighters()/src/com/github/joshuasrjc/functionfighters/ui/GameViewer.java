@@ -251,7 +251,7 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 			{
 				int x = (int)star.x;
 				int y = (int)star.y;
-				int s = (int)Math.ceil(4f / (1f + (star.z / 500f)));
+				int s = (int)Math.ceil(3f / (1f + (star.z / 500f)));
 				star.update();
 				g2d.fillRect(x, y, s, s);
 			}
@@ -300,14 +300,14 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 		{
 			randomPos();
 			lastNanos = System.nanoTime();
-			System.out.println(this);
 		}
 		
 		private void randomPos()
 		{
 			x = Game.LEFT + Game.WIDTH * rand.nextFloat();
 			y = Game.TOP + Game.HEIGHT * rand.nextFloat();
-			z = rand.nextFloat() * 2000f;
+			z = rand.nextFloat() * 45f;
+			z *= z;
 		}
 		
 		public void update()

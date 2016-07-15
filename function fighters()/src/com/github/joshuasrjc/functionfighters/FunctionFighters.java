@@ -43,12 +43,15 @@ import com.github.joshuasrjc.functionfighters.network.Server;
 import com.github.joshuasrjc.functionfighters.network.ServerListener;
 import com.github.joshuasrjc.functionfighters.ui.ChatLog;
 import com.github.joshuasrjc.functionfighters.ui.FFMenuBar;
+import com.github.joshuasrjc.functionfighters.ui.FileCache;
 import com.github.joshuasrjc.functionfighters.ui.GameViewer;
 import com.github.joshuasrjc.functionfighters.ui.Assets;
 
 public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener
 {
+	public static final String DEFAULT_NICKNAME = "";
 	public static final int DEFAULT_PORT = 7070;
+	public static final String DEFAULT_ADDRESS = "localhost";
 	
 	public static void main(String[] args)
 	{
@@ -76,6 +79,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		
 		createUI();
 		Assets.loadAssets();
+		FileCache.initCache();
 		
 		ChatLog.logInfo("Welcome to function fighters()!");
 		
@@ -311,10 +315,45 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		}
 	}
 	
+	private JTextField createNicknameField()
+	{
+		String nickname = FileCache.getString(FileCache.NICKNAME);
+		if(nickname == null) nickname = DEFAULT_NICKNAME;
+		JTextField field = new JTextField(nickname);
+		
+		field.addAncestorListener(new AncestorListener()
+		{
+			@Override
+			public void ancestorAdded(AncestorEvent ev)
+			{
+				field.requestFocusInWindow();
+			}
+
+			@Override public void ancestorMoved(AncestorEvent arg0) {}
+			@Override public void ancestorRemoved(AncestorEvent arg0){}
+		});
+		
+		return field;
+	}
+	
+	private JTextField createAddressField()
+	{
+		String address = FileCache.getString(FileCache.ADDRESS);
+		if(address == null) address = DEFAULT_ADDRESS;
+		return new JTextField(address);
+	}
+	
+	private JTextField createPortField()
+	{
+		String port = FileCache.getString(FileCache.PORT);
+		if(port == null) port = "" + DEFAULT_PORT;
+		return new JTextField(port);
+	}
+	
 	public void host()
 	{
-		JTextField nicknameField = new JTextField();
-		JTextField portField = new JFormattedTextField("" + DEFAULT_PORT);
+		JTextField nicknameField = createNicknameField();
+		JTextField portField = createPortField();
 		JPasswordField passwordField = new JPasswordField();
 		Object[] fields = {
 				"Your Nickname: ", nicknameField,
@@ -322,19 +361,8 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 				"Password: ", passwordField
 		};
 		
-		nicknameField.addAncestorListener(new AncestorListener()
-		{
-			@Override
-			public void ancestorAdded(AncestorEvent ev)
-			{
-				nicknameField.requestFocusInWindow();
-			}
-
-			@Override public void ancestorMoved(AncestorEvent arg0) {}
-			@Override public void ancestorRemoved(AncestorEvent arg0){}
-		});
+		int option = JOptionPane.showConfirmDialog(frame, fields, "Host a Server", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		
-		int option = JOptionPane.showConfirmDialog(frame, fields, "Host a Server", JOptionPane.OK_CANCEL_OPTION);
 		if(option == JOptionPane.OK_OPTION)
 		{
 			String nickname = nicknameField.getText();
@@ -353,7 +381,9 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 					ChatLog.logError("Invalid port number.");
 					return;
 				}
-				
+
+				FileCache.cacheString(FileCache.NICKNAME, nickname);
+				FileCache.cacheString(FileCache.PORT, "" + port);
 				server.startHosting(game, port, password);
 				server.connectToServer("localhost", port, nickname, password);
 			}
@@ -366,9 +396,9 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	
 	public void connect()
 	{
-		JTextField nicknameField = new JTextField();
-		JTextField addressField = new JTextField("localhost");
-		JTextField portField = new JTextField("" + DEFAULT_PORT);
+		JTextField nicknameField = createNicknameField();
+		JTextField addressField = createAddressField();
+		JTextField portField = createPortField();
 		JPasswordField passwordField = new JPasswordField();
 		
 		Object[] fields = {
@@ -378,19 +408,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 			"Password: ", passwordField
 		};
 		
-		nicknameField.addAncestorListener(new AncestorListener()
-		{
-			@Override
-			public void ancestorAdded(AncestorEvent ev)
-			{
-				nicknameField.requestFocusInWindow();
-			}
-
-			@Override public void ancestorMoved(AncestorEvent arg0) {}
-			@Override public void ancestorRemoved(AncestorEvent arg0){}
-		});
-		
-		int option = JOptionPane.showConfirmDialog(frame, fields, "Connect to a Server", JOptionPane.OK_CANCEL_OPTION);
+		int option = JOptionPane.showConfirmDialog(frame, fields, "Connect to a Server", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if(option == JOptionPane.OK_OPTION)
 		{
 			String nickname = nicknameField.getText();
@@ -410,6 +428,9 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 					ChatLog.logError("Invalid port number.");
 					return;
 				}
+				FileCache.cacheString(FileCache.NICKNAME, nickname);
+				FileCache.cacheString(FileCache.ADDRESS, address);
+				FileCache.cacheString(FileCache.PORT, "" + port);
 				server.connectToServer(address, port, nickname, password);
 			}
 			else
