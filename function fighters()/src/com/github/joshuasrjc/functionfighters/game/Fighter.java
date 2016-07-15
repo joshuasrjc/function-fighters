@@ -15,7 +15,7 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 import com.github.joshuasrjc.functionfighters.LuaFunctions;
 import com.github.joshuasrjc.functionfighters.network.Packet;
 import com.github.joshuasrjc.functionfighters.network.Server;
-import com.github.joshuasrjc.functionfighters.ui.Sprites;
+import com.github.joshuasrjc.functionfighters.ui.Assets;
 
 
 public class Fighter extends GameObject
@@ -72,18 +72,21 @@ public class Fighter extends GameObject
 		lv.set("turnRight", turnRight);
 		lv.set("turnToward", turnToward);
 		lv.set("shoot", shoot);
+		lv.set("isFacingFighter", isFacingFighter);
+		lv.set("isFacingAlly", isFacingAlly);
+		lv.set("isFacingEnemy", isFacingEnemy);
 	}
 	
 	public static final int ENEMY = 0;
 	public static final int ALLY = 1;
 	public static final int SELF = 2;
 	
-	public static final float FIGHTER_RADIUS = 8;
+	public static final float FIGHTER_RADIUS = 16;
 	public static final float MAX_HEALTH = 100;
 	
-	public static final float BULLET_SPEED = 50f;
-	public static final float BULLET_DAMAGE = 25f;
-	public static final int SHOOT_COOLDOWN = 50;
+	public static final float BULLET_SPEED = 40f;
+	public static final float BULLET_DAMAGE = 20f;
+	public static final int SHOOT_COOLDOWN = 20;
 	public static final float THRUST = 1f;
 	public static final float TURN_SPEED = (float)Math.PI / 20;
 
@@ -95,7 +98,34 @@ public class Fighter extends GameObject
 	public float health = 100;
 	public int cooldown = 0;
 	
-	private BufferedImage sprite = Sprites.fighterSprite;
+	private BufferedImage sprite;
+	
+	private RayCastFilter fightersOnly = new RayCastFilter()
+	{
+		@Override
+		public boolean doTest(GameObject obj)
+		{
+			return obj instanceof Fighter;
+		}
+	};
+	
+	private RayCastFilter alliesOnly = new RayCastFilter()
+	{
+		@Override
+		public boolean doTest(GameObject obj)
+		{
+			return obj instanceof Fighter && ((Fighter)obj).team == team;
+		}
+	};
+	
+	private RayCastFilter enemiesOnly = new RayCastFilter()
+	{
+		@Override
+		public boolean doTest(GameObject obj)
+		{
+			return obj instanceof Fighter && ((Fighter)obj).team != team;
+		}
+	};
 	
 	private Fighter self = this;
 	private String script;
@@ -103,24 +133,32 @@ public class Fighter extends GameObject
 	private Globals globals;
 	private LuaValue update;
 
-	Fighter(Game game, Vector2 position, int team, int id, String script, Server server)
+	Fighter(Game game, Vector2 position, float rotation, int team, int id, String script, Server server)
 	{
 		super(game, FIGHTER_RADIUS, position);
 
+		this.rotation = rotation;
 		this.team = team;
 		this.id = id;
 		this.script = script;
 		this.server = server;
 
-		this.setSpriteIndex((byte)1);
-		this.setElasticity(0.9f);
+		this.setElasticity(1.0f);
 		this.setFriction(0.1f);
-		this.setMaxSpeed(8f);
+		this.setMaxSpeed(-1f);
 		
 		globals = JsePlatform.standardGlobals();
 		globals.set("print", LuaFunctions.print(server));
-		LuaValue luaScript = globals.load(script);
-		luaScript.call();
+		try
+		{
+			LuaValue luaScript = globals.load(script);
+			luaScript.call();
+		}
+		catch(LuaError error)
+		{
+			String message = parseLuaError(error);
+			server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
+		}
 		update = globals.get("update");
 	}
 	
@@ -128,6 +166,8 @@ public class Fighter extends GameObject
 	{
 		super(data);
 		this.health = data.getFloat();
+		this.team = data.get();
+		this.sprite = Assets.fighterSprites[team];
 	}
 	
 	@Override
@@ -135,6 +175,7 @@ public class Fighter extends GameObject
 	{
 		super.toByteBuffer(data);
 		data.putFloat(health);
+		data.put((byte)team);
 	}
 	
 	@Override
@@ -145,71 +186,82 @@ public class Fighter extends GameObject
 	
 	public String parseLuaError(LuaError error)
 	{
-		String message = "\nScript error in fighter #" + this.id + " on team #" + this.team + '\n';
+		String str = "\nScript error in fighter #" + this.id + " on team #" + this.team + '\n';
 		
-		String line = error.getMessage();
-		line = line.substring(line.lastIndexOf(':') + 1);
-		String err = line.substring(line.indexOf(' ') + 1);
-		line = line.substring(0, line.indexOf(' '));
+		String message = error.getMessage();
+		message = message.trim();
 		
-		message += "On line: " + line + '\n';
+		String err = "";
 		
 		try
 		{
-			int lineNumber = Integer.parseInt(line);
-			System.out.println(lineNumber);
-			line = error.getMessage().split("\n")[lineNumber - 1];
-			line = line.trim();
-			message += line + '\n';
-		}
-		catch(Exception ex)
-		{
+			String infoLine = message.substring(message.lastIndexOf('\n'));
+			infoLine = infoLine.trim();
+			int i = 0;
+			for(i = 0; !Character.isDigit(infoLine.charAt(i)); i++) {}
+			infoLine = infoLine.substring(i);
 			
+			for(i = 0; Character.isDigit(infoLine.charAt(i)); i++) {}
+			
+			System.out.println(infoLine);
+			
+			String lineString = infoLine.substring(0, i);
+			System.out.println(lineString);
+			
+			String errorMessage = infoLine.substring(i + 1);
+			errorMessage = errorMessage.trim();
+			
+			int lineNumber = Integer.parseInt(lineString);
+			String line = script.split("\n")[lineNumber-1];
+			
+			err += "On line " + lineNumber + ":\n";
+			err += line.trim() + '\n';
+			err += errorMessage + '\n';
 		}
+		catch(Exception e) { }
 		
-		message += err + '\n';
-		
-		return message;
+		return str + err;
 	}
 	
 	@Override
-	public void preUpdate()
+	public void update(int step)
 	{
-		this.setAcceleration(Vector2.zero());
-		this.setTurning(0);
-		
-		if(update.isfunction())
+		if(step == Game.SCRIPT_STEP)
 		{
-			try
+			this.setAcceleration(Vector2.zero());
+			this.setTurning(0);
+
+			cooldown--;
+			if(cooldown < 0) cooldown = 0;
+			
+			if(update.isfunction())
 			{
-				update.call(game.toLuaValue(this), this.toLuaValue(SELF));
+				try
+				{
+					update.call(game.toLuaValue(this), this.toLuaValue(SELF));
+				}
+				catch(LuaError ex)
+				{
+					String message = parseLuaError(ex);
+					server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
+					destroy();
+				}
 			}
-			catch(LuaError ex)
+			
+			if(this.getAcceleration().getMagnitude() > 1f)
 			{
-				String message = parseLuaError(ex);
-				server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
-				destroy();
+				this.setAcceleration(this.getAcceleration().normalized());
 			}
+			this.setAcceleration(this.getAcceleration().times(THRUST));
+			
+			if(this.getTurning() > 1) this.setTurning(1f);
+			if(this.getTurning() < -1) this.setTurning(-1f);
+			this.setTurning(this.getTurning() * TURN_SPEED);
 		}
-		
-		if(this.getAcceleration().getMagnitude() > 1f)
+		else
 		{
-			this.setAcceleration(this.getAcceleration().normalized());
+			super.update(step);
 		}
-		this.setAcceleration(this.getAcceleration().times(THRUST));
-		
-		if(this.getTurning() > 1) this.setTurning(1f);
-		if(this.getTurning() < -1) this.setTurning(-1f);
-		this.setTurning(this.getTurning() * TURN_SPEED);
-	}
-	
-	@Override
-	public void update()
-	{
-		super.update();
-		
-		cooldown--;
-		if(cooldown < 0) cooldown = 0;
 	}
 	
 	@Override
@@ -252,15 +304,19 @@ public class Fighter extends GameObject
 			Vector2 bulletPos = this.getPosition();
 			Vector2 look = new Vector2(getRotation());
 			bulletPos.add(look.times(getRadius() + Bullet.BULLET_RADIUS));
-			Bullet bullet = new Bullet(game, bulletPos, look.times(BULLET_SPEED), BULLET_DAMAGE, team, id);
-			game.objects.add(bullet);
+			Bullet bullet = new Bullet(game, bulletPos, look.times(BULLET_SPEED), rotation, BULLET_DAMAGE, team, id);
+			game.addObject(bullet);
+			
+			server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_SHOOT_ID));
 		}
 	}
 	
 	public void onDamageDealt(float damage)
 	{
+		server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_HIT_ID));
 		if(health <= 0)
 		{
+			server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_EXPLOSION_ID));
 			destroy();
 		}
 	}
@@ -310,6 +366,8 @@ public class Fighter extends GameObject
 		if(arg2.isnumber()) speed = arg2.tofloat();
 		else if(arg0.istable() && arg1.isnumber()) speed = arg1.tofloat();
 		
+		System.out.println(speed);
+		
 		Vector2 p = new Vector2(arg0, arg1);
 		p.subtract(self.position);
 		p.normalize();
@@ -352,5 +410,20 @@ public class Fighter extends GameObject
 	{
 		self.shoot();
 		return NIL;
+	}};
+
+	private LuaValue isFacingFighter = new ZeroArgFunction() { @Override public LuaValue call()
+	{
+		return LuaValue.valueOf(game.castRay(position, new Vector2(rotation), 0, false, fightersOnly).didHitObject());
+	}};
+
+	private LuaValue isFacingAlly = new ZeroArgFunction() { @Override public LuaValue call()
+	{
+		return LuaValue.valueOf(game.castRay(position, new Vector2(rotation), 0, false, alliesOnly).didHitObject());
+	}};
+
+	private LuaValue isFacingEnemy = new ZeroArgFunction() { @Override public LuaValue call()
+	{
+		return LuaValue.valueOf(game.castRay(position, new Vector2(rotation), 0, false, enemiesOnly).didHitObject());
 	}};
 }

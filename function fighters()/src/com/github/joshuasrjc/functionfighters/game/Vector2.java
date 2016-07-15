@@ -1,5 +1,6 @@
 package com.github.joshuasrjc.functionfighters.game;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
 public class Vector2
@@ -45,7 +46,7 @@ public class Vector2
 		this.y = (float)Math.sin(theta);
 	}
 	
-	Vector2(LuaValue arg0, LuaValue arg1)
+	Vector2(LuaValue arg0, LuaValue arg1) throws LuaError
 	{
 		LuaValue xlv = arg0;
 		LuaValue ylv = arg1;
@@ -71,6 +72,14 @@ public class Vector2
 		{
 			this.x = Float.NaN;
 			this.y = Float.NaN;
+			if(arg0.isnil() || (!arg0.istable() && arg1.isnil()))
+			{
+				throw new LuaError("object or position expected, got nil");
+			}
+			else
+			{
+				throw new LuaError("object or position excpected");
+			}
 		}
 	}
 	
@@ -153,5 +162,10 @@ public class Vector2
 		float mag = getMagnitude();
 		if(mag > 0) return this.dividedBy(mag);
 		else return zero();
+	}
+	
+	public String toString()
+	{
+		return String.format("(%.2f, %.2f)", x, y);
 	}
 }

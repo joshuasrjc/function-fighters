@@ -3,13 +3,10 @@ package com.github.joshuasrjc.functionfighters.game;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 import org.luaj.vm2.LuaValue;
-
-import com.github.joshuasrjc.functionfighters.ui.Sprites;
 
 public class GameObject
 {
@@ -31,15 +28,14 @@ public class GameObject
 	public static final byte FIGHTER_ID = 2;
 	public static final byte BULLET_ID = 3;
 	public static final int OBJECT_BYTE_SIZE = 16;
-	public static final int FIGHTER_BYTE_SIZE = 20;
+	public static final int FIGHTER_BYTE_SIZE = 21;
 	public static final int BULLET_BYTE_SIZE = 16;
 	
 	public static final float PI = (float)Math.PI;
 	public static final float TWOPI = (float)Math.PI * 2f;
 	
 	protected Game game;
-	
-	private byte spriteIndex = 0;
+	private GameObject self = this;
 	
 	private float radius;
 	
@@ -60,6 +56,17 @@ public class GameObject
 	
 	protected boolean canCollide = true;
 	protected boolean destroyed = false;
+	
+	private Vector2 collisionPoint = null;
+	private Vector2 unstickVector = new Vector2(0, 0);
+	private RayCastFilter collisionFilter = new RayCastFilter()
+	{
+		@Override
+		public boolean doTest(GameObject obj)
+		{
+			return obj.canCollide && obj != self;
+		}
+	};
 	
 	GameObject(Game game)
 	{
@@ -113,7 +120,6 @@ public class GameObject
 		this.mass = (float)Math.PI * radius * radius;
 	}
 
-	public void setSpriteIndex(byte i) { this.spriteIndex = i; }
 	public void setPosition(Vector2 v) { this.position = new Vector2(v); }
 	public void setVelocity(Vector2 v) { this.velocity = new Vector2(v); }
 	public void setAcceleration(Vector2 v) { this.acceleration = new Vector2(v); }
@@ -158,17 +164,11 @@ public class GameObject
 	public void destroy()
 	{
 		destroyed = true;
-		game.objects.remove(this);
 	}
 	
 	public float getMass()
 	{
 		return mass;
-	}
-	
-	public void preUpdate() 
-	{
-
 	}
 	
 	private void clampVelocity()
@@ -180,103 +180,102 @@ public class GameObject
 		}
 	}
 	
-	private void clampTurning()
-	{
-		if(maxTurning >= 0)
-		{
-			if(turning > maxTurning)
-			{
-				turning = maxTurning;
-			}
-			else if(turning < -maxTurning)
-			{
-				turning = -maxTurning;
-			}
-		}
-	}
-	
 	private void collideWithWalls()
 	{
 		if(position.y < Game.TOP + radius)
 		{
-			velocity.y *= -1;
+			velocity = Vector2.zero();
 			position.y = Game.TOP + radius;
 			onCollide(null);
 		}
 		if(position.y > Game.BOTTOM - radius)
 		{
-			velocity.y *= -1;
+			velocity = Vector2.zero();
 			position.y = Game.BOTTOM - radius;
 			onCollide(null);
 		}
 		if(position.x < Game.LEFT + radius)
 		{
-			velocity.x *= -1;
+			velocity = Vector2.zero();
 			position.x = Game.LEFT + radius;
 			onCollide(null);
 		}
 		if(position.x > Game.RIGHT - radius)
 		{
-			velocity.x *= -1;
+			velocity = Vector2.zero();
 			position.x = Game.RIGHT - radius;
 			onCollide(null);
 		}
 	}
 	
-	public void update()
+	public void update(int step)
 	{
-		velocity.add(acceleration);
-		clampVelocity();
-		position.add(velocity);
-		velocity.multiply(1.0f - friction);
-		
-		clampTurning();
-		setRotation(rotation + turning);
-		
-		collideWithWalls();
-	}
-	
-	private void elasticCollideWith(GameObject obj)
-	{
-		Vector2 v1 = this.velocity;
-		Vector2 v2 = obj.velocity;
-		float m1 = this.mass;
-		float m2 = obj.mass;
-		
-		this.velocity = v1.times(m1 - m2).plus(v2.times(2*m2)).dividedBy(m1 + m2);
-		obj.velocity = v2.times(m2 - m1).plus(v1.times(2*m1)).dividedBy(m1 + m2);
-		
-		this.position.add(this.velocity);
-		obj.position.add(obj.velocity);
-		
-		this.velocity.multiply(elasticity);
-		obj.velocity.multiply(elasticity);
+		if(step == Game.PHYSICS_CALC_STEP)
+		{
+			velocity.add(acceleration);
+			clampVelocity();
+		}
+		if(step == Game.COLLISION_CALC_STEP)
+		{
+			collisionPoint = null;
+			RayCastResult result = game.castRay(position, velocity, radius, true, collisionFilter);
+			if(result.didHitObject() && !result.inside)
+			{
+				velocity = Vector2.zero();
+				collisionPoint = result.hitPoint;
+				onCollide(result.hitObject);
+			}
+		}
+		else if(step == Game.COLLISION_MOVE_STEP)
+		{
+			if(canCollide && collisionPoint != null)
+			{
+				position.add(collisionPoint);
+				position.divide(2f);
+			}
+		}
+		else if(step == Game.UNSTICK_CALC_STEP)
+		{
+			if(canCollide)
+			{
+				unstickVector = new Vector2(0, 0);
+				for(Iterator<GameObject> it = game.getObjectIterator(); it.hasNext();)
+				{
+					GameObject obj = it.next();
+					if(!obj.canCollide || obj == this) continue;
+					
+					Vector2 v = obj.position.minus(position);
+					float dist = v.getMagnitude();
+					if(dist < (radius + obj.radius)*1.01 && dist != 0)
+					{
+						v.divide(dist);
+						dist = radius + obj.radius - dist;
+						v.multiply(-dist);
+						unstickVector.add(v);
+					}
+				}
+			}
+		}
+		else if(step == Game.UNSTICK_MOVE_STEP)
+		{
+			if(canCollide)
+			{
+				position.add(unstickVector);
+			}
+		}
+		else if(step == Game.PHYSICS_MOVE_STEP)
+		{
+			position.add(velocity);
+			
+			velocity.multiply(1.0f - friction);
+			setRotation(rotation + turning);
+			collideWithWalls();
+		}
 	}
 	
 	public void onCollide(GameObject obj)
 	{
-		if(obj != null && canCollide && obj.canCollide)
-		{
-			elasticCollideWith(obj);
-		}
-	}
-	
-	public void postUpdate()
-	{
-		for(int i = 0; i < game.objects.size(); i++)
-		{
-			GameObject obj = game.objects.get(i);
-			
-			if(obj != this)
-			{
-				Vector2 temp = obj.position.minus(position);
-				float r = radius + obj.radius;
-				if(temp.x*temp.x + temp.y*temp.y <= r*r)
-				{
-					onCollide(obj);
-				}
-			}
-		}
+		
 	}
 	
 	public void draw(Graphics2D g)

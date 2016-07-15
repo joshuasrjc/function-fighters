@@ -1,13 +1,19 @@
 package com.github.joshuasrjc.functionfighters.game;
 
+import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
+
+import com.github.joshuasrjc.functionfighters.ui.Assets;
 
 public class Bullet extends GameObject
 {
-	public static final float BULLET_RADIUS = 3;
+	public static final float BULLET_RADIUS = 8;
 	
 	private int team;
 	private int shooterID;
+	private BufferedImage sprite = Assets.bulletSprite;
 	
 	private float damage;
 	private RayCastFilter filter = new RayCastFilter()
@@ -20,10 +26,11 @@ public class Bullet extends GameObject
 		
 	};
 	
-	Bullet(Game game, Vector2 position, Vector2 velocity, float damage, int team, int shooterID)
+	Bullet(Game game, Vector2 position, Vector2 velocity, float rotation, float damage, int team, int shooterID)
 	{
 		super(game, BULLET_RADIUS, position);
 		this.setVelocity(velocity);
+		this.setRotation(rotation);
 		this.damage = damage;
 		this.team = team;
 		this.shooterID = shooterID;
@@ -38,21 +45,32 @@ public class Bullet extends GameObject
 	@Override
 	public void onCollide(GameObject obj)
 	{
-		if(obj == null)
+		if(obj instanceof Fighter)
 		{
-			destroy();
+			Fighter fighter = (Fighter)obj;
+			if(fighter.team != team)
+			{
+				fighter.dealDamage(damage);
+			}
 		}
+		destroy();
 	}
 	
 	@Override
-	public void update()
+	public void draw(Graphics2D g)
 	{
-		Fighter fighter = (Fighter)game.castRay(position, velocity, getRadius(), filter);
-		if(fighter != null)
-		{
-			fighter.dealDamage(damage);
-			destroy();
-		}
-		super.update();
+		int x = (int)(position.x);
+		int y = (int)(position.y);
+		
+		int w = sprite.getWidth();
+		int h = sprite.getHeight();
+		
+		AffineTransform trans = new AffineTransform();
+		trans.translate(x, y);
+		trans.rotate(rotation);
+		trans.scale(2 * getRadius() / w, 2 * getRadius() / h);
+		trans.translate(-sprite.getWidth()/2, -sprite.getHeight()/2);
+		
+		g.drawImage(sprite, trans, null);
 	}
 }

@@ -14,17 +14,18 @@ public class Packet
 	public static final int CODE = 0x03;
 	
 	public static final int LOGIN = 0x10;
+	public static final int ACCEPTED = 0x10;
+	public static final int DENIED = 0x11;
+	public static final int BAD_PASSWORD = 0x12;
+	public static final int BAD_NICKNAME = 0x13;
 	
-	public static final int ACCEPTED = 0x20;
-	public static final int DENIED = 0x21;
-	public static final int BAD_PASSWORD = 0x22;
-	public static final int BAD_NICKNAME = 0x23;
+	public static final int FRAME = 0x20;
+	public static final int SCRIPT = 0x21;
+	public static final int GAME_START = 0x22;
+	public static final int GAME_PAUSE = 0x23;
+	public static final int GAME_STOP = 0x24;
 	
-	public static final int FRAME = 0x30;
-	public static final int SCRIPT = 0x31;
-	public static final int GAME_START = 0x32;
-	public static final int GAME_PAUSE = 0x33;
-	public static final int GAME_STOP = 0x34;
+	public static final int PLAY_SOUND = 0x30;
 	
 	public static final int ITEM_SELECT = 0x40;
 	public static final int ITEM_ADD = 0x41;
@@ -60,13 +61,6 @@ public class Packet
 			ChatLog.logError("Unable to encode string.");
 			ex.printStackTrace();
 		}
-		
-		System.out.print("[ ");
-		for(byte b : data)
-		{
-			System.out.print(b + " ");
-		}
-		System.out.print("]\n");
 	}
 	
 	public Packet(int type, int id)
@@ -107,13 +101,6 @@ public class Packet
 	
 	public String getFirstLine()
 	{
-		System.out.print("[ ");
-		for(byte b : data)
-		{
-			System.out.print(b + " ");
-		}
-		System.out.print("]\n");
-		
 		if(message == null) parseText();
 		return message.substring(0, message.indexOf('\n'));
 	}

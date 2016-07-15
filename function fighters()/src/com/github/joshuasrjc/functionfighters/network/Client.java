@@ -105,8 +105,8 @@ public class Client
 		{
 			ChatLog.logError("Error disconnecting client.");
 		}
-
-		ChatLog.logInfo("Player [" + nickname + "] has disconnected from the server."); 
+		
+		server.onClientDisconnected(client);
 	}
 	
 	public String getNickname()

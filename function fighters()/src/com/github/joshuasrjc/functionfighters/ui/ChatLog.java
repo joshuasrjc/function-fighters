@@ -26,6 +26,10 @@ public class ChatLog extends JPanel implements ClientListener
 	public static final Dimension MIN_SIZE = new Dimension(64,64);
 	public static final Dimension DEFAULT_SIZE = new Dimension(400, 600);
 	public static final Font CHAT_FIELD_FONT = new Font("Courier New", Font.PLAIN, 16);
+	public static final Color TEXT_PANE_COLOR = new Color(.1f, .1f, .1f);
+	public static final Color CHAT_FIELD_COLOR = Color.BLACK;
+	public static final Color FONT_COLOR = Color.WHITE;
+	
 	
 	private static ArrayList<ChatLog> logs = new ArrayList<ChatLog>();
 	
@@ -37,19 +41,19 @@ public class ChatLog extends JPanel implements ClientListener
 	
 	public static void initStyles()
 	{
-		INFO_STYLE.addAttribute(StyleConstants.Foreground, Color.BLUE);
+		INFO_STYLE.addAttribute(StyleConstants.Foreground, Color.CYAN);
 		INFO_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		INFO_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 
-		ERROR_STYLE.addAttribute(StyleConstants.Foreground, Color.RED);
+		ERROR_STYLE.addAttribute(StyleConstants.Foreground, new Color(1f, .5f, .25f));
 		ERROR_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		ERROR_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 		
-		CHAT_STYLE.addAttribute(StyleConstants.Foreground, Color.BLACK);
+		CHAT_STYLE.addAttribute(StyleConstants.Foreground, Color.WHITE);
 		CHAT_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		CHAT_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 		
-		CODE_STYLE.addAttribute(StyleConstants.Foreground, new Color(0, 191, 0));
+		CODE_STYLE.addAttribute(StyleConstants.Foreground, Color.GRAY);
 		CODE_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		CODE_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 		CODE_STYLE.addAttribute(StyleConstants.Bold, true);
@@ -107,6 +111,9 @@ public class ChatLog extends JPanel implements ClientListener
 		createUI();
 		
 		CHAT_FIELD.setFont(CHAT_FIELD_FONT);
+		CHAT_FIELD.setBackground(CHAT_FIELD_COLOR);
+		CHAT_FIELD.setForeground(FONT_COLOR);
+		CHAT_FIELD.setCaretColor(FONT_COLOR);
 		CHAT_FIELD.addActionListener(listener);
 		this.add(CHAT_FIELD, BorderLayout.SOUTH);
 	}
@@ -121,6 +128,7 @@ public class ChatLog extends JPanel implements ClientListener
 		
 		textPane = new JTextPane(doc);
 		textPane.setEditable(false);
+		textPane.setBackground(TEXT_PANE_COLOR);
 		
 		scrollPane = new JScrollPane(textPane);
 		scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);

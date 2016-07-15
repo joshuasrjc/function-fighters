@@ -44,7 +44,7 @@ import com.github.joshuasrjc.functionfighters.network.ServerListener;
 import com.github.joshuasrjc.functionfighters.ui.ChatLog;
 import com.github.joshuasrjc.functionfighters.ui.FFMenuBar;
 import com.github.joshuasrjc.functionfighters.ui.GameViewer;
-import com.github.joshuasrjc.functionfighters.ui.Sprites;
+import com.github.joshuasrjc.functionfighters.ui.Assets;
 
 public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener
 {
@@ -52,7 +52,6 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	
 	public static void main(String[] args)
 	{
-		Sprites.loadSprites();
 		ChatLog.initStyles();
 		new FunctionFighters();
 	}
@@ -76,6 +75,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		server.addClientListener(this);
 		
 		createUI();
+		Assets.loadAssets();
 		
 		ChatLog.logInfo("Welcome to function fighters()!");
 		
@@ -130,6 +130,20 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	{
 		menuBar.HOST.setEnabled(true);
 		menuBar.CLOSE.setEnabled(false);
+	}
+	
+	@Override 
+	public void onClientConnected(Client client)
+	{
+		server.sendPacketToAllClients(new Packet(Packet.INFO,
+				"Player [" + client.getNickname() + "] has connected to the server."));
+	}
+	
+	@Override 
+	public void onClientDisconnected(Client client)
+	{
+		server.sendPacketToAllClients(new Packet(Packet.INFO,
+				"Player [" + client.getNickname() + "] has disconnected from the server."));
 	}
 
 	@Override
@@ -412,6 +426,4 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		server.sendPacketToServer(new Packet(Packet.CHAT, message));
 	}
 
-	@Override public void onClientConnected(Client client) {}
-	@Override public void onClientDisconnected(Client client) {}
 }

@@ -4,6 +4,9 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import javax.swing.JPanel;
 
@@ -37,7 +40,7 @@ public class Game implements Runnable, ServerListener
 		lv.set("getDistanceTo", gf.getDistanceTo);
 		lv.set("getDirectionTo", gf.getDirectionTo);
 		
-		lv.set("getFighters", gf.getFighters); 
+		lv.set("getFighters", gf.getFighters);
 		lv.set("getAllies", gf.getAllies);
 		lv.set("getEnemies", gf.getEnemies);
 		
@@ -60,36 +63,56 @@ public class Game implements Runnable, ServerListener
 		return lv;
 	}
 	
+	public static final int DEBUG_STEP = 0;
+	public static final int SCRIPT_STEP = 1;
+	public static final int PHYSICS_CALC_STEP = 2;
+	public static final int COLLISION_CALC_STEP = 3;
+	public static final int COLLISION_MOVE_STEP = 4;
+	public static final int UNSTICK_CALC_STEP = 5;
+	public static final int UNSTICK_MOVE_STEP = 6;
+	public static final int PHYSICS_MOVE_STEP = 7;
+	
 	public static final int N_TEAMS = 2;
 	public static final int N_FIGHTERS_PER_TEAM = 3;
 	public static final long FRAME_MILLIS = 20;
 	
-	public static final float TOP = -300;
-	public static final float BOTTOM = 300;
-	public static final float LEFT = -600;
-	public static final float RIGHT = 600;
+	public static final float WIDTH = 800;
+	public static final float HEIGHT = 400;
+	public static final float TOP = -HEIGHT/2;
+	public static final float BOTTOM = HEIGHT/2;
+	public static final float LEFT = -WIDTH/2;
+	public static final float RIGHT = WIDTH/2;
 	
 	private Game game = this;
 	private Server server;
+	
 	private ArrayList<String> scriptNames = new ArrayList<String>();
 	private ArrayList<String> scripts = new ArrayList<String>();
 	private int[] selections = new int[N_TEAMS];
 	
 	private boolean gameRunning = false;
 	private boolean gamePaused = false;
-	private boolean threadRunning = true;
 	private long time = 0;
+	private Frame lastFrame = null;
 	
 	public static final float G = 0.0f;
 	
 	private Thread thread;
 	
-	public ArrayList<GameObject> objects = new ArrayList<GameObject>();
-	public ArrayList<Fighter> fighters = new ArrayList<Fighter>();
+	private ArrayList<GameObject> objects = new ArrayList<GameObject>();
+	private ArrayList<Fighter> fighters = new ArrayList<Fighter>();
+	private ArrayList<Bullet> bullets = new ArrayList<Bullet>();
+	
+	private Queue<GameObject> toBeAdded = new LinkedList<GameObject>();
 	
 	public Vector2[][] positions = {
 		{new Vector2(-400, 0), new Vector2(-400, -200), new Vector2(-400, 200)},
 		{new Vector2(400, 0), new Vector2(400, 200), new Vector2(400, -200)}
+	};
+	
+	public float[] rotations = {
+			0f,
+			Fighter.PI
 	};
 	
 	int frameIndex = 0;
@@ -102,6 +125,16 @@ public class Game implements Runnable, ServerListener
 		{
 			selections[i] = -1;
 		}
+	}
+	
+	public void addObject(GameObject obj)
+	{
+		toBeAdded.add(obj);
+	}
+	
+	public Iterator<GameObject> getObjectIterator()
+	{
+		return objects.iterator();
 	}
 	
 	public void addScript(String name, String text)
@@ -124,6 +157,15 @@ public class Game implements Runnable, ServerListener
 				client.sendPacket(new Packet(Packet.ITEM_SELECT, selections[i], i));
 			}
 		}
+		if(isRunning())
+		{
+			client.sendPacket(new Packet(Packet.GAME_START));
+			if(isPaused())
+			{
+				client.sendPacket(new Packet(Packet.GAME_PAUSE));
+				if(lastFrame != null) client.sendPacket(lastFrame.toPacket());
+			}
+		}
 	}
 	
 	@Override
@@ -134,12 +176,17 @@ public class Game implements Runnable, ServerListener
 		{
 			if(!game.isRunning())
 			{
-				if(game.start()) server.sendPacketToAllClients(new Packet(Packet.GAME_START));
+				if(game.start())
+				{
+					server.sendPacketToAllClients(new Packet(Packet.GAME_START));
+					server.sendPacketToAllClients(new Packet(Packet.INFO, "Game Started"));
+				}
 			}
 			else if(game.isPaused())
 			{
 				game.resume();
 				server.sendPacketToAllClients(new Packet(Packet.GAME_START));
+				server.sendPacketToAllClients(new Packet(Packet.INFO, "Game Resumed"));
 			}
 			else
 			{
@@ -154,6 +201,7 @@ public class Game implements Runnable, ServerListener
 				{
 					game.pause();
 					server.sendPacketToAllClients(new Packet(Packet.GAME_PAUSE));
+					server.sendPacketToAllClients(new Packet(Packet.INFO, "Game Paused"));
 				}
 				else
 				{
@@ -167,11 +215,14 @@ public class Game implements Runnable, ServerListener
 		}
 		else if(type == Packet.GAME_STOP)
 		{
+			System.out.println("STOP1");
 			if(game.isRunning())
 			{
+				System.out.println("STOP2");
 				game.stop();
-				System.out.println("Game stop.");
+				System.out.println("STOP3");
 				server.sendPacketToAllClients(new Packet(Packet.GAME_STOP));
+				server.sendPacketToAllClients(new Packet(Packet.INFO, "Game Stopped"));
 			}
 			else
 			{
@@ -193,7 +244,6 @@ public class Game implements Runnable, ServerListener
 			{
 				selections[team] = index;
 				server.sendPacketToAllClients(new Packet(Packet.ITEM_SELECT, index, team));
-				System.out.println("Selected" + team + ", " + index);
 			}
 		}
 	}
@@ -210,6 +260,20 @@ public class Game implements Runnable, ServerListener
 		return scripts;
 	}
 	
+	public void buildPositions(float radius)
+	{
+		positions = new Vector2[N_TEAMS][N_FIGHTERS_PER_TEAM];
+		float alpha = (float)Math.asin(BOTTOM/radius);
+		float beta = 2f * alpha / (N_FIGHTERS_PER_TEAM + 1);
+		for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
+		{
+			float theta = -alpha + (id + 1) * beta;
+			System.out.println("Theta: " + theta);
+			positions[0][id] = new Vector2(theta + (float)Math.PI).times(radius);
+			positions[1][id] = new Vector2(theta).times(radius);
+		}
+	}
+	
 	public boolean start()
 	{
 		time = 0;
@@ -220,15 +284,18 @@ public class Game implements Runnable, ServerListener
 			return false;
 		}
 		
+		buildPositions(500);
+		
 		for(int team = 0; team < N_TEAMS; team++)
 		{
 			for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
 			{
-				Fighter fighter = new Fighter(this, positions[team][id], team, id, scripts[team], server);
-				fighters.add(fighter);
-				objects.add(fighter);
+				Fighter fighter = new Fighter(this, positions[team][id], rotations[team], team, id, scripts[team], server);
+				addObject(fighter);
 			}
 		}
+		
+		addObjects();
 		
 		gameRunning = true;
 		
@@ -254,46 +321,79 @@ public class Game implements Runnable, ServerListener
 		gameRunning = false;
 		gamePaused = false;
 		
-		while(objects.size() > 0)
+		try
 		{
-			objects.get(0).destroy();
+			thread.join();
+		}
+		catch (Exception ex)
+		{
+			ChatLog.logError("Error stopping game.");
+		}
+		
+		while(objects.size() > 0) objects.remove(objects.get(0));
+		while(fighters.size() > 0) fighters.remove(fighters.get(0));
+		while(bullets.size() > 0) bullets.remove(bullets.get(0));
+	}
+	
+	public void update(int step)
+	{
+		for(GameObject obj : objects)
+		{
+			obj.update(step);
+		}
+		addObjects();
+	}
+	
+	private void addObjects()
+	{
+		while(!toBeAdded.isEmpty())
+		{
+			GameObject obj = toBeAdded.poll();
+			objects.add(obj);
+			if(obj instanceof Fighter) fighters.add((Fighter)obj);
+			if(obj instanceof Bullet) bullets.add((Bullet)obj);
 		}
 	}
 	
-	public void preUpdate()
+	private void cleanup()
 	{
-		for(int i = 0; i < objects.size(); i++)
+		for(Iterator<GameObject> it = objects.iterator(); it.hasNext();)
 		{
-			GameObject obj = objects.get(i);
-			obj.preUpdate();
+			GameObject obj = it.next();
+			if(obj.isDestroyed())
+			{
+				it.remove();
+			}
 		}
-	}
-	
-	public void update()
-	{
-		for(int i = 0; i < objects.size(); i++)
+		for(Iterator<Fighter> it = fighters.iterator(); it.hasNext();)
 		{
-			GameObject obj = objects.get(i);
-			obj.update();
+			GameObject obj = it.next();
+			if(obj.isDestroyed())
+			{
+				it.remove();
+			}
 		}
-	}
-	
-	public void postUpdate()
-	{
-		for(int i = 0; i < objects.size(); i++)
+		for(Iterator<Bullet> it = bullets.iterator(); it.hasNext();)
 		{
-			GameObject obj = objects.get(i);
-			obj.postUpdate();
+			GameObject obj = it.next();
+			if(obj.isDestroyed())
+			{
+				it.remove();
+			}
 		}
 	}
 	
 	public void sendFrame()
 	{
-		GameObject[] objectArray = objects.toArray(new GameObject[objects.size()]);
+		GameObject[] objectArray = new GameObject[objects.size()];
+		Iterator<GameObject> it = objects.iterator();
+		for(int i = 0; it.hasNext(); i++)
+		{
+			objectArray[i] = it.next();
+		}
 		Frame frame = new Frame(objectArray);
+		lastFrame = frame;
 		server.sendPacketToAllClients(frame.toPacket());
-		frameIndex++;
-		frameIndex %= 256;
 	}
 	
 	@Override
@@ -301,10 +401,15 @@ public class Game implements Runnable, ServerListener
 	{
 		while(gameRunning)
 		{
-			
-			preUpdate();
-			update();
-			postUpdate();
+			update(DEBUG_STEP);
+			update(SCRIPT_STEP);
+			update(PHYSICS_CALC_STEP);
+			update(COLLISION_CALC_STEP);
+			update(COLLISION_MOVE_STEP);
+			update(UNSTICK_CALC_STEP);
+			update(UNSTICK_MOVE_STEP);
+			update(PHYSICS_MOVE_STEP);
+			cleanup();
 			sendFrame();
 			time++;
 			try { Thread.sleep(FRAME_MILLIS); } catch(Exception ex) { break; }
@@ -326,91 +431,71 @@ public class Game implements Runnable, ServerListener
 		return gamePaused;
 	}
 	
-	private float getRayCastDistance(Vector2 start, Vector2 dir, float radius, GameObject obj)
+	public RayCastResult castRay(Vector2 start, Vector2 dir, float radius, boolean bounded, RayCastFilter filter)
 	{
-		float a = start.x;
-		float b = start.y;
-		float c = dir.x;
-		float d = dir.y;
-		float h = obj.position.x;
-		float k = obj.position.y;
-		float r = obj.getRadius() + radius;
+		GameObject hitObject = null;
+		double smallestT = Double.MAX_VALUE;
+		Vector2 hitPoint = null;
+		boolean inside = false;
 		
-		float a2 = a*a;
-		float b2 = b*b;
-		float c2 = c*c;
-		float d2 = d*d;
-		float h2 = h*h;
-		float k2 = k*k;
-		float r2 = r*r;
+		double a = start.x;
+		double b = start.y;
+		double c = dir.x;
+		double d = dir.y;
 		
-		float radicand = (d2 + c2)*r2 - c2*k2 + (2*c*d*h - 2*a*c*d + 2*b*c2)*k - d2*h2 + (2*a*d2 - 2*b*c*d)*h - a2*d2 + 2*a*b*c*d - b2*c2;
-		if(radicand < 0f) return Float.NaN;
+		if(c == 0 && d == 0) return new RayCastResult(null, null, false);
 		
-		float root = (float)Math.sqrt(radicand);
-		float addend = d*k + c*h - b*d - a*c;
-		float divisor = d2 + c2;
+		double a2 = a*a;
+		double b2 = b*b;
+		double c2 = c*c;
+		double d2 = d*d;
 		
-		float t1 = (-root + addend) / divisor;
-		float t2 = (root + addend) / divisor;
-		
-		float dist1 = Float.NaN;
-		float dist2 = Float.NaN;
-		
-		if(t1 >= 0 && t1 <= 1)
+		objectLoop: for(GameObject obj : objects)
 		{
-			Vector2 p1 = new Vector2(a + c*t1, b + d*t1);
-			dist1 = p1.minus(start).getMagnitude();
-		}
-		
-		if(t2 >= 0 && t2 <= 1)
-		{
-			Vector2 p2 = new Vector2(a + c*t2, b + d*t2);
-			dist2 = p2.minus(start).getMagnitude();
-		}
-		
-		if(Float.isNaN(dist1) && Float.isNaN(dist2))
-		{
-			return Float.NaN;
-		}
-		else if(Float.isNaN(dist1))
-		{
-			return dist2;
-		}
-		else if(Float.isNaN(dist2))
-		{
-			return dist1;
-		}
-		else if(dist1 <= dist2)
-		{
-			return dist1;
-		}
-		else if(dist2 < dist1)
-		{
-			return dist2;
-		}
-		
-		return Float.NaN;
-	}
-	
-	public GameObject castRay(Vector2 start, Vector2 dir, float radius, RayCastFilter filter)
-	{
-		GameObject closestObject = null;
-		float closestDistance = Float.MAX_VALUE;
-		for(int i = 0; i < objects.size(); i++)
-		{
-			GameObject obj = objects.get(i);
 			if(filter == null || filter.doTest(obj))
 			{
-				float distance = getRayCastDistance(start, dir, radius, obj);
-				if(!Float.isNaN(distance) && distance < closestDistance)
+				double h = obj.position.x;
+				double k = obj.position.y;
+				double r = obj.getRadius() + radius;
+				
+				double h2 = h*h;
+				double k2 = k*k;
+				double r2 = r*r;
+				
+				double radicand = (d2 + c2)*r2 - c2*k2 + (2*c*d*h - 2*a*c*d + 2*b*c2)*k - d2*h2 + (2*a*d2 - 2*b*c*d)*h - a2*d2 + 2*a*b*c*d - b2*c2;
+				if(radicand < 0)
 				{
-					closestDistance = distance;
-					closestObject = obj;
+					continue objectLoop;
+				}
+				
+				double root = Math.sqrt(radicand);
+				double addend = d*k + c*h - b*d - a*c;
+				double divisor = d2 + c2;
+				
+				double t1 = (addend - root) / divisor;
+				double t2 = (addend + root) / divisor;
+				
+				if(t1 >= 0)
+				{
+					if((t1 <= 1 || !bounded) && t1 < smallestT)
+					{
+						smallestT = t1;
+						hitObject = obj;
+						hitPoint = new Vector2((float)(a + c*t1), (float)( b + d*t1));
+						inside = false;
+					}
+				}
+				else if(t2 >= 0 && t1 < smallestT)
+				{
+					smallestT = t1;
+					hitObject = obj;
+					hitPoint = new Vector2((float)(a + c*t1), (float)( b + d*t1));
+					inside = true;
 				}
 			}
 		}
-		return closestObject;
+		
+		return new RayCastResult(hitObject, hitPoint, inside);
 	}
 	
 	public float getDistanceBetween(GameObject obj1, GameObject obj2)
@@ -435,9 +520,8 @@ public class Game implements Runnable, ServerListener
 		private Fighter[] get(int team)
 		{
 			ArrayList<Fighter> fighterList = new ArrayList<Fighter>();
-			for(int i = 0; i < fighters.size(); i++)
+			for(Fighter f : fighters)
 			{
-				Fighter f = fighters.get(i);
 				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
 				{
 					fighterList.add(f);
@@ -450,9 +534,8 @@ public class Game implements Runnable, ServerListener
 		{
 			Fighter closestFighter = null;
 			float shortestDistance = Float.MAX_VALUE;
-			for(int i = 0; i < fighters.size(); i++)
+			for(Fighter f : fighters)
 			{
-				Fighter f = fighters.get(i);
 				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
 				{
 					float distance = getDistanceBetween(f, fighter);
@@ -470,9 +553,8 @@ public class Game implements Runnable, ServerListener
 		{
 			Fighter farthestFighter = null;
 			float longestDistance = Float.MIN_VALUE;
-			for(int i = 0; i < fighters.size(); i++)
+			for(Fighter f : fighters)
 			{
-				Fighter f = fighters.get(i);
 				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
 				{
 					float distance = getDistanceBetween(f, fighter);
@@ -490,9 +572,8 @@ public class Game implements Runnable, ServerListener
 		{
 			Fighter weakestFighter = null;
 			float lowestHealth = Float.MAX_VALUE;
-			for(int i = 0; i < fighters.size(); i++)
+			for(Fighter f : fighters)
 			{
-				Fighter f = fighters.get(i);
 				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
 				{
 					float health = f.health;
@@ -510,9 +591,8 @@ public class Game implements Runnable, ServerListener
 		{
 			Fighter strongestFighter = null;
 			float highestHealth = Float.MIN_VALUE;
-			for(int i = 0; i < fighters.size(); i++)
+			for(Fighter f : fighters)
 			{
-				Fighter f = fighters.get(i);
 				if(f != fighter && ( team == FIGHTERS || (team == ALLIES) == (f.team == fighter.team) ))
 				{
 					float health = f.health;
@@ -586,6 +666,17 @@ public class Game implements Runnable, ServerListener
 			return LuaValue.listOf(lvs);
 		}};
 		
+		public LuaValue getBullets = new ZeroArgFunction() { @Override public LuaValue call()
+		{
+			Fighter[] fighters = functions.get(ENEMIES);
+			LuaValue[] lvs = new LuaValue[fighters.length];
+			for(int i = 0; i < lvs.length; i++)
+			{
+				lvs[i] = fighters[i].toLuaValue(Fighter.ENEMY);
+			}
+			return LuaValue.listOf(lvs);
+		}};
+		
 		
 		
 		
@@ -593,6 +684,7 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findClosestFighter = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findClosest(FIGHTERS);
+			if(f == null) return NIL;
 			LuaValue lv;
 			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
 			else lv = f.toLuaValue(Fighter.ENEMY);
@@ -602,12 +694,14 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findClosestAlly = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findClosest(ALLIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ALLY);
 		}};
 		
 		public LuaValue findClosestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findClosest(ENEMIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ENEMY);
 		}};
 		
@@ -618,6 +712,7 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findFarthestFighter = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findFarthest(FIGHTERS);
+			if(f == null) return NIL;
 			LuaValue lv;
 			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
 			else lv = f.toLuaValue(Fighter.ENEMY);
@@ -627,12 +722,14 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findFarthestAlly = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findFarthest(ALLIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ALLY);
 		}};
 		
 		public LuaValue findFarthestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findFarthest(ENEMIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ENEMY);
 		}};
 		
@@ -643,6 +740,7 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findWeakestFighter = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findWeakest(FIGHTERS);
+			if(f == null) return NIL;
 			LuaValue lv;
 			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
 			else lv = f.toLuaValue(Fighter.ENEMY);
@@ -652,12 +750,14 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findWeakestAlly = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findWeakest(ALLIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ALLY);
 		}};
 		
 		public LuaValue findWeakestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findWeakest(ENEMIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ENEMY);
 		}};
 		
@@ -668,6 +768,7 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findStrongestFighter = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findStrongest(FIGHTERS);
+			if(f == null) return NIL;
 			LuaValue lv;
 			if(f.team == fighter.team) lv = f.toLuaValue(Fighter.ALLY);
 			else lv = f.toLuaValue(Fighter.ENEMY);
@@ -677,12 +778,14 @@ public class Game implements Runnable, ServerListener
 		public LuaValue findStrongestAlly = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findStrongest(ALLIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ALLY);
 		}};
 		
 		public LuaValue findStrongestEnemy = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter f = findStrongest(ENEMIES);
+			if(f == null) return NIL;
 			return f.toLuaValue(Fighter.ENEMY);
 		}};
 	}

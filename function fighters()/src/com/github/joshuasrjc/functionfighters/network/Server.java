@@ -231,7 +231,7 @@ public class Server
 			serverSocket.close();
 			ChatLog.logInfo("Closed Server");
 		}
-		catch (IOException e)
+		catch (Exception e)
 		{
 			ChatLog.logError("Error closing server.");
 		}
