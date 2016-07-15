@@ -2,14 +2,27 @@ package com.github.joshuasrjc.functionfighters.game;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.TwoArgFunction;
 
 public class Vector2
 {
+	public static LuaValue toGlobalLuaValue()
+	{
+		LuaValue lv = LuaValue.tableOf();
+		lv.set("new", luaNew);
+		return lv;
+	}
+	
 	public LuaValue toLuaValue()
 	{
 		LuaValue lv = LuaValue.tableOf();
+		LuaValue mt = LuaValue.tableOf();
 		lv.set("x", x);
 		lv.set("y", y);
+		
+		mt.set("__add", "");
+		lv.setmetatable(mt);
 		return lv;
 	}
 	
@@ -168,4 +181,83 @@ public class Vector2
 	{
 		return String.format("(%.2f, %.2f)", x, y);
 	}
+	
+	private static LuaValue luaNew = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		arg0.checknumber();
+		arg1.checknumber();
+		Vector2 v = new Vector2(arg0.tofloat(), arg1.tofloat());
+		return v.toLuaValue();
+	}};
+
+	
+	private LuaValue unm = new OneArgFunction() { @Override public LuaValue call(LuaValue arg0)
+	{
+		arg0.checktable();
+		LuaValue lvx0 = arg0.get("x");
+		LuaValue lvy0 = arg0.get("y");
+		lvx0.checknumber();
+		lvy0.checknumber();
+		
+		float x0 = lvx0.tofloat();
+		float y0 = lvy0.tofloat();
+		
+		return new Vector2(-x0, -y0).toLuaValue();
+	}};
+
+	
+	private LuaValue add = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		arg0.checktable();
+		arg1.checktable();
+		LuaValue lvx0 = arg0.get("x");
+		LuaValue lvy0 = arg0.get("y");
+		LuaValue lvx1 = arg1.get("x");
+		LuaValue lvy1 = arg1.get("y");
+		lvx0.checknumber();
+		lvy0.checknumber();
+		lvx1.checknumber();
+		lvy1.checknumber();
+		
+		float x0 = lvx0.tofloat();
+		float y0 = lvy0.tofloat();
+		float x1 = lvx1.tofloat();
+		float y1 = lvy1.tofloat();
+		
+		return new Vector2(x0 + x1, y0 + y1).toLuaValue();
+	}};
+
+	
+	private LuaValue sub = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		arg0.checktable();
+		arg1.checktable();
+		LuaValue lvx0 = arg0.get("x");
+		LuaValue lvy0 = arg0.get("y");
+		LuaValue lvx1 = arg1.get("x");
+		LuaValue lvy1 = arg1.get("y");
+		lvx0.checknumber();
+		lvy0.checknumber();
+		lvx1.checknumber();
+		lvy1.checknumber();
+		
+		float x0 = lvx0.tofloat();
+		float y0 = lvy0.tofloat();
+		float x1 = lvx1.tofloat();
+		float y1 = lvy1.tofloat();
+		
+		return new Vector2(x0 - x1, y0 - y1).toLuaValue();
+	}};
+
+	
+	private LuaValue mul = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		LuaValue v = arg0;
+		LuaValue n = arg1;
+		if(arg0.istable())
+		{
+			
+		}
+		return NIL;
+	}};
 }

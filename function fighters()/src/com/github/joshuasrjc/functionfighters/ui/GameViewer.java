@@ -6,7 +6,9 @@ import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
@@ -17,6 +19,7 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
 import com.github.joshuasrjc.functionfighters.game.Bullet;
+import com.github.joshuasrjc.functionfighters.game.Fighter;
 import com.github.joshuasrjc.functionfighters.game.Game;
 import com.github.joshuasrjc.functionfighters.game.GameObject;
 import com.github.joshuasrjc.functionfighters.game.Vector2;
@@ -34,6 +37,9 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 	public static final Color LIST_COLOR = new Color(.1f, .1f, .1f);
 	public static final Color LABEL_COLOR = Color.BLACK;
 	public static final Color FONT_COLOR = Color.WHITE;
+	
+	public static final String TIE_MESSAGE = "Tie Game";
+	public static final String WIN_MESSAGE = "Team %d Wins!";
 	
 	public static final int BUFFER_SIZE = 10;
 	private Thread thread;
@@ -56,6 +62,7 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 	
 	public GameViewer(Server server)
 	{
+		this.setMinimumSize(new Dimension(256,128));
 		this.server = server;
 		this.setLayout(new GridLayout(0, Game.N_TEAMS));
 		
@@ -251,13 +258,16 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 			{
 				int x = (int)star.x;
 				int y = (int)star.y;
-				int s = (int)Math.ceil(3f / (1f + (star.z / 500f)));
+				float z = star.z;
+				int s = (int)Math.ceil(3f * z * z * z);
 				star.update();
 				g2d.fillRect(x, y, s, s);
 			}
 			
 			g2d.setStroke(new BasicStroke(2));
 			g2d.drawRect((int)(Game.LEFT), (int)(Game.TOP), (int)(Game.RIGHT - Game.LEFT), (int)(Game.BOTTOM - Game.TOP));
+
+			boolean[] teamAlive = new boolean[Game.N_TEAMS];
 			
 			if(currentFrame != null)
 			{
@@ -265,8 +275,41 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 				{
 					GameObject obj = currentFrame.objects[i];
 					obj.draw(g2d);
+					if(obj instanceof Fighter)
+					{
+						teamAlive[((Fighter)obj).team] = true;
+					}
 				}
 				
+				g2d.setColor(Color.WHITE);
+				g2d.setFont(TEAM_LABEL_FONT);
+				FontMetrics fontMetrics = g2d.getFontMetrics(TEAM_LABEL_FONT);
+				
+				int nTeamsAlive = 0;
+				for(boolean b : teamAlive)
+				{
+					if(b) nTeamsAlive++;
+				}
+				if(nTeamsAlive == 0)
+				{
+					String str = TIE_MESSAGE;
+					int x = -fontMetrics.stringWidth(str) / 2;
+					int y = -fontMetrics.getAscent() / 2;
+					g2d.drawString(str, x, y);
+				}
+				else if(nTeamsAlive == 1)
+				{
+					for(int i = 0; i < teamAlive.length; i++)
+					{
+						if(teamAlive[i])
+						{
+							String str = String.format(WIN_MESSAGE, i);
+							int x = -fontMetrics.stringWidth(str) / 2;
+							int y = -fontMetrics.getAscent() / 2;
+							g2d.drawString(str, x, y);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -292,7 +335,7 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 	{
 		float x;
 		float y;
-		float z;
+		float z = -1f;
 		
 		long lastNanos;
 		
@@ -306,8 +349,15 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 		{
 			x = Game.LEFT + Game.WIDTH * rand.nextFloat();
 			y = Game.TOP + Game.HEIGHT * rand.nextFloat();
-			z = rand.nextFloat() * 45f;
-			z *= z;
+			if(z != -1f)
+			{
+				int i = (int)(4*z);
+				z = i / 4f + 0.25f * rand.nextFloat();
+			}
+			else
+			{
+				z = rand.nextFloat();
+			}
 		}
 		
 		public void update()
@@ -316,11 +366,13 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 			float deltaTime = (nanos - lastNanos)/1000000000f;
 			lastNanos = nanos;
 			
-			x += 5000f * deltaTime / z;
-			if(x > Game.RIGHT)
+			x += deltaTime * 800f * z*z*z / Game.FRAME_MILLIS;
+			while(x > Game.RIGHT)
 			{
+				x -= Game.WIDTH;
+				float temp = x;
 				randomPos();
-				x = Game.LEFT;
+				x = temp;
 			}
 		}
 		

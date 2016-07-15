@@ -16,6 +16,7 @@ public class GameObject
 		lv.set("radius", radius);
 		lv.set("position", position.toLuaValue());
 		lv.set("velocity", velocity.toLuaValue());
+		lv.set("speed", velocity.getMagnitude());
 		lv.set("rotation", rotation);
 		lv.set("mass", mass);
 		lv.set("elasticity", elasticity);

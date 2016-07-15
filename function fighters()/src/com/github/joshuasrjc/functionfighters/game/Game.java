@@ -73,7 +73,7 @@ public class Game implements Runnable, ServerListener
 	public static final int PHYSICS_MOVE_STEP = 7;
 	
 	public static final int N_TEAMS = 2;
-	public static final int N_FIGHTERS_PER_TEAM = 3;
+	public static final int N_FIGHTERS_PER_TEAM = 4;
 	public static final long FRAME_MILLIS = 20;
 	
 	public static final float WIDTH = 800;
@@ -215,12 +215,9 @@ public class Game implements Runnable, ServerListener
 		}
 		else if(type == Packet.GAME_STOP)
 		{
-			System.out.println("STOP1");
 			if(game.isRunning())
 			{
-				System.out.println("STOP2");
 				game.stop();
-				System.out.println("STOP3");
 				server.sendPacketToAllClients(new Packet(Packet.GAME_STOP));
 				server.sendPacketToAllClients(new Packet(Packet.INFO, "Game Stopped"));
 			}
@@ -268,7 +265,6 @@ public class Game implements Runnable, ServerListener
 		for(int id = 0; id < N_FIGHTERS_PER_TEAM; id++)
 		{
 			float theta = -alpha + (id + 1) * beta;
-			System.out.println("Theta: " + theta);
 			positions[0][id] = new Vector2(theta + (float)Math.PI).times(radius);
 			positions[1][id] = new Vector2(theta).times(radius);
 		}

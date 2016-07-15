@@ -81,13 +81,13 @@ public class Fighter extends GameObject
 	public static final int ALLY = 1;
 	public static final int SELF = 2;
 	
-	public static final float FIGHTER_RADIUS = 16;
+	public static final float FIGHTER_RADIUS = 12;
 	public static final float MAX_HEALTH = 100;
 	
-	public static final float BULLET_SPEED = 40f;
-	public static final float BULLET_DAMAGE = 20f;
-	public static final int SHOOT_COOLDOWN = 20;
-	public static final float THRUST = 1f;
+	public static final float BULLET_SPEED = 15f;
+	public static final float BULLET_DAMAGE = 25f;
+	public static final int SHOOT_COOLDOWN = 50;
+	public static final float THRUST = 0.5f;
 	public static final float TURN_SPEED = (float)Math.PI / 20;
 
 	private static final float QUARTER_TURN = (float)Math.PI / 2f;
@@ -149,6 +149,7 @@ public class Fighter extends GameObject
 		
 		globals = JsePlatform.standardGlobals();
 		globals.set("print", LuaFunctions.print(server));
+		globals.set("Vector2", Vector2.toGlobalLuaValue());
 		try
 		{
 			LuaValue luaScript = globals.load(script);

@@ -9,7 +9,7 @@ import com.github.joshuasrjc.functionfighters.ui.Assets;
 
 public class Bullet extends GameObject
 {
-	public static final float BULLET_RADIUS = 8;
+	public static final float BULLET_RADIUS = 6;
 	
 	private int team;
 	private int shooterID;

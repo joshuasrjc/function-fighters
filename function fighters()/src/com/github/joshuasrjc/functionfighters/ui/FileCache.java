@@ -12,16 +12,29 @@ import java.io.PrintWriter;
 
 public class FileCache
 {
-	public static String NICKNAME = "nickname";
-	public static String ADDRESS = "address";
-	public static String PORT = "port";
+	public static final String NICKNAME = "nickname";
+	public static final String ADDRESS = "address";
+	public static final String PORT = "port";
+	public static final String SCRIPTDIR = "scriptdir";
 	
 	private static File dir;
 	private static File cache;
 	
 	public static void initCache()
 	{
-		dir = new File(System.getProperty("user.home") + "/.functionfighters");
+		String os = System.getProperty("os.name");
+		if(os.toUpperCase().contains("WINDOWS") &&(
+				os.toUpperCase().contains("VISTA") ||
+				os.contains("7") ||
+				os.contains("8") ||
+				os.contains("10")))
+		{
+			dir = new File(System.getenv("APPDATA") + "/FunctionFighters");
+		}
+		else
+		{
+			dir = new File(System.getProperty("user.home") + "/.FunctionFighters");
+		}
 		
 		if(dir.exists() && !dir.isDirectory())
 		{

@@ -80,7 +80,9 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		createUI();
 		Assets.loadAssets();
 		FileCache.initCache();
-		
+
+		frame.setIconImage(Assets.icon.getImage());
+		frame.setVisible(true);
 		ChatLog.logInfo("Welcome to function fighters()!");
 		
 		Globals globals = JsePlatform.standardGlobals();
@@ -114,8 +116,6 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		
 		JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chatLog, gameViewer);
 		frame.add(splitPane, BorderLayout.CENTER);
-		
-		frame.setVisible(true);
 		
 		fileChooser = new JFileChooser();
 		FileNameExtensionFilter filter = new FileNameExtensionFilter("Scripts (.lua)", "lua");
@@ -279,9 +279,20 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	
 	public void load()
 	{
+		String scriptDir = FileCache.getString(FileCache.SCRIPTDIR);
+		if(scriptDir != null)
+		{
+			fileChooser.setCurrentDirectory(new File(scriptDir));
+		}
 		int option = fileChooser.showOpenDialog(frame);
 		if(option == JFileChooser.APPROVE_OPTION)
 		{
+			try
+			{
+				scriptDir = fileChooser.getCurrentDirectory().getCanonicalPath();
+				FileCache.cacheString(FileCache.SCRIPTDIR, scriptDir);
+			}
+			catch (IOException e) {  }
 			File file = fileChooser.getSelectedFile();
 			
 			if(!file.exists() || !file.isFile())

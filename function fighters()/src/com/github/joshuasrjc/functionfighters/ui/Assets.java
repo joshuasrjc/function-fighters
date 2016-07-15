@@ -8,6 +8,7 @@ import javax.imageio.ImageIO;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
+import javax.swing.ImageIcon;
 
 import com.github.joshuasrjc.functionfighters.game.Game;
 
@@ -17,6 +18,7 @@ public class Assets
 	public static final int SOUND_HIT_ID = 1;
 	public static final int SOUND_EXPLOSION_ID = 2;
 	
+	public static ImageIcon icon;
 	public static BufferedImage bulletSprite;
 	public static BufferedImage[] fighterSprites = new BufferedImage[Game.N_TEAMS];
 	public static final String[] soundNames = 
@@ -29,6 +31,15 @@ public class Assets
 	public static void loadAssets()
 	{
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+		
+		try
+		{
+			icon = new ImageIcon(classLoader.getResource("icon.png"));
+		}
+		catch(Exception ex)
+		{
+			ChatLog.logError("Error loading icon.png");
+		}
 		
 		try
 		{
