@@ -53,7 +53,7 @@ public class ChatLog extends JPanel implements ClientListener
 		CHAT_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		CHAT_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 		
-		CODE_STYLE.addAttribute(StyleConstants.Foreground, Color.GRAY);
+		CODE_STYLE.addAttribute(StyleConstants.Foreground, Color.GREEN);
 		CODE_STYLE.addAttribute(StyleConstants.FontSize, 14);
 		CODE_STYLE.addAttribute(StyleConstants.FontFamily, "courier new");
 		CODE_STYLE.addAttribute(StyleConstants.Bold, true);
@@ -173,10 +173,10 @@ public class ChatLog extends JPanel implements ClientListener
 			String message = packet.getMessage();
 			switch(type)
 			{
-			case Packet.INFO: log(message, INFO_STYLE); break;
-			case Packet.ERROR: log(message, ERROR_STYLE); break;
-			case Packet.CHAT: log(message, CHAT_STYLE); break;
-			case Packet.CODE: log(message, CODE_STYLE); break;
+			case Packet.INFO: logInfo(message); break;
+			case Packet.ERROR: logError(message); break;
+			case Packet.CHAT: logChat(message); break;
+			case Packet.CODE: logCode(message); break;
 			}
 		}
 	}

@@ -76,8 +76,8 @@ public class Game implements Runnable, ServerListener
 	public static final int N_FIGHTERS_PER_TEAM = 4;
 	public static final long FRAME_MILLIS = 20;
 	
-	public static final float WIDTH = 800;
-	public static final float HEIGHT = 400;
+	public static final float WIDTH = 1000;
+	public static final float HEIGHT = 500;
 	public static final float TOP = -HEIGHT/2;
 	public static final float BOTTOM = HEIGHT/2;
 	public static final float LEFT = -WIDTH/2;
@@ -98,6 +98,8 @@ public class Game implements Runnable, ServerListener
 	public static final float G = 0.0f;
 	
 	private Thread thread;
+	
+	private long lastUID = 0;
 	
 	private ArrayList<GameObject> objects = new ArrayList<GameObject>();
 	private ArrayList<Fighter> fighters = new ArrayList<Fighter>();
@@ -137,10 +139,21 @@ public class Game implements Runnable, ServerListener
 		return objects.iterator();
 	}
 	
+	public Iterator<Fighter> getFighterIterator()
+	{
+		return fighters.iterator();
+	}
+	
 	public void addScript(String name, String text)
 	{
 		scriptNames.add(name);
 		scripts.add(text);
+	}
+	
+	public void removeScript(int index)
+	{
+		scriptNames.remove(index);
+		scripts.remove(index);
 	}
 
 	@Override
@@ -233,6 +246,15 @@ public class Game implements Runnable, ServerListener
 			addScript(name, text);
 			server.sendPacketToAllClients(new Packet(Packet.ITEM_ADD, name));
 		}
+		else if(type == Packet.ITEM_REMOVE)
+		{
+			int index = packet.getIndex();
+			if(index >= 0 && index < scripts.size())
+			{
+				removeScript(index);
+				server.sendPacketToAllClients(new Packet(Packet.ITEM_REMOVE, index));
+			}
+		}
 		else if(type == Packet.ITEM_SELECT)
 		{
 			int index = packet.getIndex();
@@ -244,7 +266,7 @@ public class Game implements Runnable, ServerListener
 			}
 		}
 	}
-	
+
 	private String[] getScripts()
 	{
 		String[] scripts = new String[N_TEAMS];
@@ -255,6 +277,12 @@ public class Game implements Runnable, ServerListener
 			scripts[i] = this.scripts.get(selections[i]);
 		}
 		return scripts;
+	}
+	
+	public long getUID()
+	{
+		lastUID++;
+		return lastUID;
 	}
 	
 	public void buildPositions(float radius)
@@ -280,7 +308,7 @@ public class Game implements Runnable, ServerListener
 			return false;
 		}
 		
-		buildPositions(500);
+		buildPositions(300);
 		
 		for(int team = 0; team < N_TEAMS; team++)
 		{
@@ -652,17 +680,6 @@ public class Game implements Runnable, ServerListener
 		}};
 		
 		public LuaValue getEnemies = new ZeroArgFunction() { @Override public LuaValue call()
-		{
-			Fighter[] fighters = functions.get(ENEMIES);
-			LuaValue[] lvs = new LuaValue[fighters.length];
-			for(int i = 0; i < lvs.length; i++)
-			{
-				lvs[i] = fighters[i].toLuaValue(Fighter.ENEMY);
-			}
-			return LuaValue.listOf(lvs);
-		}};
-		
-		public LuaValue getBullets = new ZeroArgFunction() { @Override public LuaValue call()
 		{
 			Fighter[] fighters = functions.get(ENEMIES);
 			LuaValue[] lvs = new LuaValue[fighters.length];

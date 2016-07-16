@@ -7,12 +7,14 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.TwoArgFunction;
 
 public class GameObject
 {
 	public LuaValue toLuaValue()
 	{
 		LuaValue lv = LuaValue.tableOf();
+		LuaValue mt = LuaValue.tableOf();
 		lv.set("radius", radius);
 		lv.set("position", position.toLuaValue());
 		lv.set("velocity", velocity.toLuaValue());
@@ -21,6 +23,10 @@ public class GameObject
 		lv.set("mass", mass);
 		lv.set("elasticity", elasticity);
 		lv.set("friction", friction);
+		lv.set("uid", uid);
+		
+		mt.set("__eq", eq);
+		lv.setmetatable(mt);
 		return lv;
 	}
 	
@@ -37,6 +43,8 @@ public class GameObject
 	
 	protected Game game;
 	private GameObject self = this;
+	
+	private long uid;
 	
 	private float radius;
 	
@@ -72,6 +80,7 @@ public class GameObject
 	GameObject(Game game)
 	{
 		this.game = game;
+		this.uid = game.getUID();
 		setRadius(0);
 		this.position = Vector2.zero();
 		this.velocity = Vector2.zero();
@@ -84,6 +93,7 @@ public class GameObject
 	GameObject(Game game, float radius, Vector2 position)
 	{
 		this.game = game;
+		this.uid = game.getUID();
 		setRadius(radius);
 		this.position = new Vector2(position);
 		this.velocity = Vector2.zero();
@@ -187,25 +197,25 @@ public class GameObject
 		{
 			velocity = Vector2.zero();
 			position.y = Game.TOP + radius;
-			onCollide(null);
+			onCollideWithWall();
 		}
 		if(position.y > Game.BOTTOM - radius)
 		{
 			velocity = Vector2.zero();
 			position.y = Game.BOTTOM - radius;
-			onCollide(null);
+			onCollideWithWall();
 		}
 		if(position.x < Game.LEFT + radius)
 		{
 			velocity = Vector2.zero();
 			position.x = Game.LEFT + radius;
-			onCollide(null);
+			onCollideWithWall();
 		}
 		if(position.x > Game.RIGHT - radius)
 		{
 			velocity = Vector2.zero();
 			position.x = Game.RIGHT - radius;
-			onCollide(null);
+			onCollideWithWall();
 		}
 	}
 	
@@ -219,12 +229,14 @@ public class GameObject
 		if(step == Game.COLLISION_CALC_STEP)
 		{
 			collisionPoint = null;
-			RayCastResult result = game.castRay(position, velocity, radius, true, collisionFilter);
-			if(result.didHitObject() && !result.inside)
+			if(canCollide)
 			{
-				velocity = Vector2.zero();
-				collisionPoint = result.hitPoint;
-				onCollide(result.hitObject);
+				RayCastResult result = game.castRay(position, velocity, radius, true, collisionFilter);
+				if(result.didHitObject() && !result.inside)
+				{
+					velocity = Vector2.zero();
+					collisionPoint = result.hitPoint;
+				}
 			}
 		}
 		else if(step == Game.COLLISION_MOVE_STEP)
@@ -237,9 +249,9 @@ public class GameObject
 		}
 		else if(step == Game.UNSTICK_CALC_STEP)
 		{
+			unstickVector = new Vector2(0, 0);
 			if(canCollide)
 			{
-				unstickVector = new Vector2(0, 0);
 				for(Iterator<GameObject> it = game.getObjectIterator(); it.hasNext();)
 				{
 					GameObject obj = it.next();
@@ -274,7 +286,7 @@ public class GameObject
 		}
 	}
 	
-	public void onCollide(GameObject obj)
+	public void onCollideWithWall()
 	{
 		
 	}
@@ -287,4 +299,19 @@ public class GameObject
 		g.setStroke(new BasicStroke(3));
 		g.drawOval((int)(position.x - radius), (int)(position.y - radius), (int)(2 * radius), (int)(2 * radius));
 	}
+	
+	private LuaValue eq = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		LuaValue lvuid0 = arg0.get("uid");
+		LuaValue lvuid1 = arg1.get("uid");
+		if(!lvuid0.isint() || !lvuid1.isint())
+		{
+			return LuaValue.FALSE;
+		}
+		
+		long uid0 = lvuid0.tolong();
+		long uid1 = lvuid1.tolong();
+		
+		return LuaValue.valueOf(uid0 == uid1);
+	}};
 }

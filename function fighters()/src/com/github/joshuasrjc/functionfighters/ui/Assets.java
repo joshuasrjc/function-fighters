@@ -3,6 +3,7 @@ package com.github.joshuasrjc.functionfighters.ui;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 
 import javax.imageio.ImageIO;
 import javax.sound.sampled.AudioInputStream;
@@ -62,6 +63,8 @@ public class Assets
 				ChatLog.logError("Error loading " + filepath);
 			}
 		}
+		
+		//playSound(SOUND_EXPLOSION_ID);
 	}
 	
 	public static void playSound(int id)
@@ -74,7 +77,7 @@ public class Assets
 				try
 				{
 					ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-					AudioInputStream in = AudioSystem.getAudioInputStream(classLoader.getResourceAsStream(soundNames[id]));
+					AudioInputStream in = AudioSystem.getAudioInputStream(classLoader.getResource(soundNames[id]));
 					Clip clip = AudioSystem.getClip();
 					clip.open(in);
 					clip.start();

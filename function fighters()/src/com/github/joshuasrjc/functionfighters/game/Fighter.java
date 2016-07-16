@@ -5,10 +5,15 @@ import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.*;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
@@ -58,7 +63,7 @@ public class Fighter extends GameObject
 	
 	private void setAllyTable(LuaValue lv)
 	{
-		
+		lv.set("sendMessage", sendMessage);
 	}
 	
 	private void setSelfTable(LuaValue lv)
@@ -92,6 +97,24 @@ public class Fighter extends GameObject
 
 	private static final float QUARTER_TURN = (float)Math.PI / 2f;
 
+	public static final int UPDATE = 0;
+	public static final int MESSAGE = 1;
+	public static final int ON_HIT = 2;
+	public static final int ON_FIGHTER_SHOT_BULLET = 3;
+	public static final int ON_FIGHTER_DESTROYED = 4;
+	
+	private static final String[] FUNCTION_NAMES = 
+	{
+		"update",
+		"recieveMessage",
+		"onHit",
+		"onFighterShotBullet",
+		"onFighterDestroyed"
+	};
+	
+	private LuaValue[] functions;
+	private Queue<GameEvent> inbox = new LinkedList<GameEvent>();
+	
 	public int team;
 	public int id;
 	
@@ -131,7 +154,6 @@ public class Fighter extends GameObject
 	private String script;
 	private Server server;
 	private Globals globals;
-	private LuaValue update;
 
 	Fighter(Game game, Vector2 position, float rotation, int team, int id, String script, Server server)
 	{
@@ -160,7 +182,13 @@ public class Fighter extends GameObject
 			String message = parseLuaError(error);
 			server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
 		}
-		update = globals.get("update");
+		
+		functions = new LuaValue[FUNCTION_NAMES.length];
+		for(int i = 0; i < FUNCTION_NAMES.length; i++)
+		{
+			String name = FUNCTION_NAMES[i];
+			functions[i] = globals.get(name);
+		}
 	}
 	
 	public Fighter(ByteBuffer data)
@@ -224,6 +252,48 @@ public class Fighter extends GameObject
 		return str + err;
 	}
 	
+	public void addEvent(GameEvent ev)
+	{
+		inbox.add(ev);
+	}
+	
+	private void sendEventToOtherFighters(int id)
+	{
+		for(Iterator<Fighter> it = game.getFighterIterator(); it.hasNext();)
+		{
+			Fighter f = it.next();
+			LuaValue lv;
+			if(f == this) continue;
+			if(f.team == team)
+			{
+				lv = toLuaValue(ALLY);
+			}
+			else
+			{
+				lv = toLuaValue(ENEMY);
+			}
+			f.addEvent(new GameEvent(id, lv));
+		}
+	}
+	
+	public void call(int id, Varargs args)
+	{
+		LuaValue function = functions[id];
+		if(function.isfunction())
+		{
+			try
+			{
+				function.invoke(args);
+			}
+			catch(LuaError ex)
+			{
+				String message = parseLuaError(ex);
+				server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
+				destroy();
+			}
+		}
+	}
+	
 	@Override
 	public void update(int step)
 	{
@@ -235,19 +305,17 @@ public class Fighter extends GameObject
 			cooldown--;
 			if(cooldown < 0) cooldown = 0;
 			
-			if(update.isfunction())
+			globals.set("game", game.toLuaValue(this));
+			globals.set("self", this.toLuaValue(SELF));
+			
+			while(!inbox.isEmpty())
 			{
-				try
-				{
-					update.call(game.toLuaValue(this), this.toLuaValue(SELF));
-				}
-				catch(LuaError ex)
-				{
-					String message = parseLuaError(ex);
-					server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
-					destroy();
-				}
+				GameEvent ev = inbox.poll();
+				call(ev.type, ev.args);
 			}
+			
+			call(UPDATE, LuaValue.NIL);
+
 			
 			if(this.getAcceleration().getMagnitude() > 1f)
 			{
@@ -308,17 +376,24 @@ public class Fighter extends GameObject
 			Bullet bullet = new Bullet(game, bulletPos, look.times(BULLET_SPEED), rotation, BULLET_DAMAGE, team, id);
 			game.addObject(bullet);
 			
+			sendEventToOtherFighters(ON_FIGHTER_SHOT_BULLET);
+			
 			server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_SHOOT_ID));
 		}
 	}
 	
-	public void onDamageDealt(float damage)
+	private void onDamageDealt(float damage)
 	{
 		server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_HIT_ID));
 		if(health <= 0)
 		{
+			sendEventToOtherFighters(ON_FIGHTER_DESTROYED);
 			server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_EXPLOSION_ID));
 			destroy();
+		}
+		else
+		{
+			addEvent(new GameEvent(ON_HIT, LuaValue.valueOf(damage)));
 		}
 	}
 	
@@ -426,5 +501,11 @@ public class Fighter extends GameObject
 	private LuaValue isFacingEnemy = new ZeroArgFunction() { @Override public LuaValue call()
 	{
 		return LuaValue.valueOf(game.castRay(position, new Vector2(rotation), 0, false, enemiesOnly).didHitObject());
+	}};
+	
+	private LuaValue sendMessage = new VarArgFunction() { @Override public LuaValue invoke(Varargs args)
+	{
+		inbox.add(new GameEvent(MESSAGE, args));
+		return NIL;
 	}};
 }

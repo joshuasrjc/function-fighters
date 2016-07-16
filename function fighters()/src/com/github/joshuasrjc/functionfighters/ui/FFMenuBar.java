@@ -27,6 +27,8 @@ public class FFMenuBar extends JMenuBar
 	public final JMenuItem STOP = new JMenuItem("Stop Game");
 	
 	private JMenu help;
+	public final  JMenuItem GETTING_STARTED = new JMenuItem("Getting Started");
+	public final  JMenuItem DOCUMENTATION = new JMenuItem("Documentation");
 	public final  JMenuItem ABOUT = new JMenuItem("About");
 	
 	public FFMenuBar(ActionListener listener)

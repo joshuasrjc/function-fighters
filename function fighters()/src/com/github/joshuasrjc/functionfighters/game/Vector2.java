@@ -20,8 +20,13 @@ public class Vector2
 		LuaValue mt = LuaValue.tableOf();
 		lv.set("x", x);
 		lv.set("y", y);
-		
-		mt.set("__add", "");
+
+		mt.set("__unm", unm);
+		mt.set("__add", add);
+		mt.set("__sub", sub);
+		mt.set("__mul", mul);
+		mt.set("__div", div);
+		mt.set("__eq", eq);
 		lv.setmetatable(mt);
 		return lv;
 	}
@@ -249,15 +254,67 @@ public class Vector2
 		return new Vector2(x0 - x1, y0 - y1).toLuaValue();
 	}};
 
-	
 	private LuaValue mul = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
 	{
 		LuaValue v = arg0;
 		LuaValue n = arg1;
-		if(arg0.istable())
+		if(n.istable())
 		{
-			
+			v = arg1;
+			n = arg0;
 		}
-		return NIL;
+		v.checktable();
+		n.checknumber();
+		
+		LuaValue lvx = v.get("x");
+		LuaValue lvy = v.get("y");
+		lvx.checknumber();
+		lvy.checknumber();
+		
+		float a = n.tofloat();
+		float x = lvx.tofloat();
+		float y = lvy.tofloat();
+		
+		return new Vector2(a*x, a*y).toLuaValue();
+	}};
+
+	private LuaValue div = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		LuaValue v = arg0;
+		LuaValue n = arg1;
+		v.checktable();
+		n.checknumber();
+		
+		LuaValue lvx = v.get("x");
+		LuaValue lvy = v.get("y");
+		lvx.checknumber();
+		lvy.checknumber();
+		
+		float a = n.tofloat();
+		float x = lvx.tofloat();
+		float y = lvy.tofloat();
+		
+		return new Vector2(x/a, y/a).toLuaValue();
+	}};
+
+	private LuaValue eq = new TwoArgFunction() { @Override public LuaValue call(LuaValue arg0, LuaValue arg1)
+	{
+		arg0.checktable();
+		arg1.checktable();
+		LuaValue lvx0 = arg0.get("x");
+		LuaValue lvy0 = arg0.get("y");
+		LuaValue lvx1 = arg1.get("x");
+		LuaValue lvy1 = arg1.get("y");
+		lvx0.checknumber();
+		lvy0.checknumber();
+		lvx1.checknumber();
+		lvy1.checknumber();
+		
+		float x0 = lvx0.tofloat();
+		float y0 = lvy0.tofloat();
+		float x1 = lvx1.tofloat();
+		float y1 = lvy1.tofloat();
+		
+		return LuaValue.valueOf(x0 == x1 && y0 == y1);
 	}};
 }

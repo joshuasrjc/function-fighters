@@ -16,7 +16,7 @@ public class LuaFunctions
 			@Override
 			public LuaValue call(LuaValue str)
 			{
-				server.sendPacketToAllClients(new Packet(Packet.INFO, str.tojstring()));
+				server.sendPacketToAllClients(new Packet(Packet.CODE, str.tojstring()));
 				return NIL;
 			}
 		};

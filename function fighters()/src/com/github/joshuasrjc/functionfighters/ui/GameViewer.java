@@ -12,6 +12,8 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.ArrayList;
 
 import javax.swing.*;
@@ -60,6 +62,29 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 	private ArrayList<JList<String>> lists = new ArrayList<JList<String>>();
 	private ArrayList<DefaultListModel<String>> listModels = new ArrayList<DefaultListModel<String>>();
 	
+	private KeyListener keyListener = new KeyListener()
+	{
+		@Override
+		public void keyPressed(KeyEvent ev)
+		{
+			if(ev.getKeyCode() == KeyEvent.VK_DELETE)
+			{
+				if(ev.getSource() instanceof JList)
+				{
+					JList list = (JList)ev.getSource();
+					int index = list.getSelectedIndex();
+					if(index >= 0)
+					{
+						server.sendPacketToServer(new Packet(Packet.ITEM_REMOVE, index));
+					}
+				}
+			}
+		}
+
+		@Override public void keyReleased(KeyEvent arg0) {}
+		@Override public void keyTyped(KeyEvent arg0) {}
+	};
+	
 	public GameViewer(Server server)
 	{
 		this.setMinimumSize(new Dimension(256,128));
@@ -86,6 +111,7 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 			list.setFont(LIST_FONT);
 			list.setBackground(LIST_COLOR);
 			list.setForeground(FONT_COLOR);
+			list.addKeyListener(keyListener);
 			JScrollPane scrollPane = new JScrollPane(list);
 			scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 			scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -141,6 +167,11 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 		{
 			String name = packet.getMessage();
 			addItem(name);
+		}
+		else if(type == Packet.ITEM_REMOVE)
+		{
+			int index = packet.getIndex();
+			removeItem(index);
 		}
 		else if(type == Packet.ITEM_SELECT)
 		{

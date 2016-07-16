@@ -43,17 +43,28 @@ public class Bullet extends GameObject
 	}
 	
 	@Override
-	public void onCollide(GameObject obj)
+	public void onCollideWithWall()
 	{
-		if(obj instanceof Fighter)
+		destroy();
+	}
+	
+	@Override
+	public void update(int step)
+	{
+		if(step == Game.COLLISION_CALC_STEP)
 		{
-			Fighter fighter = (Fighter)obj;
-			if(fighter.team != team)
+			RayCastResult result = game.castRay(position, velocity, getRadius(), true, filter);
+			if(result.didHitObject())
 			{
+				Fighter fighter = (Fighter)result.hitObject;
 				fighter.dealDamage(damage);
+				destroy();
 			}
 		}
-		destroy();
+		else
+		{
+			super.update(step);
+		}
 	}
 	
 	@Override
