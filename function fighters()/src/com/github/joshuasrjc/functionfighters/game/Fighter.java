@@ -49,16 +49,16 @@ public class Fighter extends GameObject
 	
 	private void setFighterTable(LuaValue lv)
 	{
-		lv.set("team", team);
-		lv.set("id", id);
+		lv.set("team", team + 1);
+		lv.set("id", id + 1);
 		lv.set("health", health);
 		lv.set("maxHealth", MAX_HEALTH);
 		lv.set("cooldown", cooldown);
 		lv.set("shootCooldown", SHOOT_COOLDOWN);
 		lv.set("bulletSpeed", BULLET_SPEED);
 		lv.set("bulletDamage", BULLET_DAMAGE);
-		lv.set("thrust", THRUST);
 		lv.set("turnSpeed", TURN_SPEED);
+		lv.set("isFacing", isFacing);
 	}
 	
 	private void setAllyTable(LuaValue lv)
@@ -92,7 +92,6 @@ public class Fighter extends GameObject
 	public static final float BULLET_SPEED = 15f;
 	public static final float BULLET_DAMAGE = 25f;
 	public static final int SHOOT_COOLDOWN = 50;
-	public static final float THRUST = 0.5f;
 	public static final float TURN_SPEED = (float)Math.PI / 20;
 
 	private static final float QUARTER_TURN = (float)Math.PI / 2f;
@@ -103,7 +102,7 @@ public class Fighter extends GameObject
 	public static final int ON_FIGHTER_SHOT_BULLET = 3;
 	public static final int ON_FIGHTER_DESTROYED = 4;
 	
-	private static final String[] FUNCTION_NAMES = 
+	private static final String[] EVENT_NAMES = 
 	{
 		"update",
 		"recieveMessage",
@@ -112,7 +111,7 @@ public class Fighter extends GameObject
 		"onFighterDestroyed"
 	};
 	
-	private LuaValue[] functions;
+	private LuaValue[] events;
 	private Queue<GameEvent> inbox = new LinkedList<GameEvent>();
 	
 	public int team;
@@ -158,16 +157,17 @@ public class Fighter extends GameObject
 	Fighter(Game game, Vector2 position, float rotation, int team, int id, String script, Server server)
 	{
 		super(game, FIGHTER_RADIUS, position);
+		
+		script = script.replace("!=", "~=");
 
 		this.rotation = rotation;
 		this.team = team;
 		this.id = id;
 		this.script = script;
 		this.server = server;
-
-		this.setElasticity(1.0f);
-		this.setFriction(0.1f);
-		this.setMaxSpeed(-1f);
+		
+		thrust = 1f;
+		maxSpeed = 8f;
 		
 		globals = JsePlatform.standardGlobals();
 		globals.set("print", LuaFunctions.print(server));
@@ -183,11 +183,11 @@ public class Fighter extends GameObject
 			server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
 		}
 		
-		functions = new LuaValue[FUNCTION_NAMES.length];
-		for(int i = 0; i < FUNCTION_NAMES.length; i++)
+		events = new LuaValue[EVENT_NAMES.length];
+		for(int i = 0; i < EVENT_NAMES.length; i++)
 		{
-			String name = FUNCTION_NAMES[i];
-			functions[i] = globals.get(name);
+			String name = EVENT_NAMES[i];
+			events[i] = globals.get(name);
 		}
 	}
 	
@@ -197,6 +197,7 @@ public class Fighter extends GameObject
 		this.health = data.getFloat();
 		this.team = data.get();
 		this.sprite = Assets.fighterSprites[team];
+		this.uid = data.getShort();
 	}
 	
 	@Override
@@ -205,6 +206,7 @@ public class Fighter extends GameObject
 		super.toByteBuffer(data);
 		data.putFloat(health);
 		data.put((byte)team);
+		data.putShort((short)uid);
 	}
 	
 	@Override
@@ -215,7 +217,7 @@ public class Fighter extends GameObject
 	
 	public String parseLuaError(LuaError error)
 	{
-		String str = "\nScript error in fighter #" + this.id + " on team #" + this.team + '\n';
+		String str = "\nScript error in fighter #" + (id + 1) + " on team #" + (team + 1) + '\n';
 		
 		String message = error.getMessage();
 		message = message.trim();
@@ -278,17 +280,18 @@ public class Fighter extends GameObject
 	
 	public void call(int id, Varargs args)
 	{
-		LuaValue function = functions[id];
-		if(function.isfunction())
+		LuaValue event = events[id];
+		if(event.isfunction())
 		{
 			try
 			{
-				function.invoke(args);
+				event.invoke(args);
 			}
 			catch(LuaError ex)
 			{
 				String message = parseLuaError(ex);
 				server.sendPacketToAllClients(new Packet(Packet.ERROR, message));
+				server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_ERROR_ID));
 				destroy();
 			}
 		}
@@ -321,7 +324,7 @@ public class Fighter extends GameObject
 			{
 				this.setAcceleration(this.getAcceleration().normalized());
 			}
-			this.setAcceleration(this.getAcceleration().times(THRUST));
+			this.setAcceleration(this.getAcceleration().times(thrust));
 			
 			if(this.getTurning() > 1) this.setTurning(1f);
 			if(this.getTurning() < -1) this.setTurning(-1f);
@@ -363,6 +366,9 @@ public class Fighter extends GameObject
 		w = (int)(w * (health / 100f));
 		
 		g.fillRect(x, y, w, h);
+		
+		g.setColor(Color.MAGENTA);
+		g.drawString("" + uid, position.x - getRadius(), position.y + 2 * getRadius());
 	}
 	
 	public void shoot()
@@ -507,5 +513,25 @@ public class Fighter extends GameObject
 	{
 		inbox.add(new GameEvent(MESSAGE, args));
 		return NIL;
+	}};
+	
+	private LuaValue isFacing = new OneArgFunction() { @Override public LuaValue call(LuaValue arg0)
+	{
+		arg0.checktable();
+		LuaValue lvuid = arg0.get("uid");
+		long uid = lvuid.checkint();
+		
+		RayCastFilter filter = new RayCastFilter()
+		{
+			@Override
+			public boolean doTest(GameObject obj)
+			{
+				return obj.uid == uid;
+			}
+	
+		};
+		
+		RayCastResult result = game.castRay(position, new Vector2(rotation), 0, false, filter);
+		return LuaValue.valueOf(result.didHitObject());
 	}};
 }

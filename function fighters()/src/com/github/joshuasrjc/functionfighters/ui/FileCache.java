@@ -16,6 +16,8 @@ public class FileCache
 	public static final String ADDRESS = "address";
 	public static final String PORT = "port";
 	public static final String SCRIPTDIR = "scriptdir";
+	public static final String SOUND_MUTED = "soundMuted";
+	public static final String MUSIC_MUTED = "musicMuted";
 	
 	private static File dir;
 	private static File cache;
@@ -135,6 +137,25 @@ public class FileCache
 		
 		
 		return null;
+	}
+	
+	public static void cacheBool(String key, boolean value)
+	{
+		cacheString(key, "" + value);
+	}
+	
+	public static boolean getBool(String key, boolean defaultValue)
+	{
+		String str = getString(key);
+		try
+		{
+			boolean value = Boolean.parseBoolean(str);
+			return value;
+		}
+		catch(Exception ex)
+		{
+			return defaultValue;
+		}
 	}
 	
 	public static void cacheInt(String key, int value)

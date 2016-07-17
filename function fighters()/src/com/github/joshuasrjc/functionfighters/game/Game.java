@@ -29,6 +29,8 @@ public class Game implements Runnable, ServerListener
 		GameFunctions gf = new GameFunctions(fighter);
 		
 		LuaValue lv = LuaValue.tableOf();
+		lv.set("width", WIDTH);
+		lv.set("height", HEIGHT);
 		lv.set("top", TOP);
 		lv.set("bottom", BOTTOM);
 		lv.set("left", LEFT);
@@ -341,9 +343,10 @@ public class Game implements Runnable, ServerListener
 	
 	public void stop()
 	{
-		thread = null;
 		gameRunning = false;
 		gamePaused = false;
+		time = 0;
+		lastUID = 0;
 		
 		try
 		{
@@ -353,6 +356,8 @@ public class Game implements Runnable, ServerListener
 		{
 			ChatLog.logError("Error stopping game.");
 		}
+		
+		thread = null;
 		
 		while(objects.size() > 0) objects.remove(objects.get(0));
 		while(fighters.size() > 0) fighters.remove(fighters.get(0));

@@ -90,6 +90,16 @@ public class FFMenuBar extends JMenuBar
 		help = new JMenu("Help");
 		help.setFont(MENU_FONT);
 
+		GETTING_STARTED.setFont(MENU_FONT);
+		GETTING_STARTED.addActionListener(listener);
+		help.add(GETTING_STARTED);
+		
+		DOCUMENTATION.setFont(MENU_FONT);
+		DOCUMENTATION.addActionListener(listener);
+		help.add(DOCUMENTATION);
+		
+		help.addSeparator();
+		
 		ABOUT.setFont(MENU_FONT);
 		ABOUT.addActionListener(listener);
 		help.add(ABOUT);

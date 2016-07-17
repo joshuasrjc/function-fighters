@@ -4,6 +4,8 @@ package com.github.joshuasrjc.functionfighters;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -11,11 +13,15 @@ import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.text.NumberFormat;
@@ -24,6 +30,8 @@ import java.util.Scanner;
 import javax.swing.*;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
+import javax.swing.event.HyperlinkEvent;
+import javax.swing.event.HyperlinkListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -47,16 +55,43 @@ import com.github.joshuasrjc.functionfighters.ui.FileCache;
 import com.github.joshuasrjc.functionfighters.ui.GameViewer;
 import com.github.joshuasrjc.functionfighters.ui.Assets;
 
-public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener
+public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener, KeyListener, HyperlinkListener
 {
+	public static final String VERSION = "v1.13";
+	public static final String TITLE = "function fighters()";
+	
 	public static final String DEFAULT_NICKNAME = "";
 	public static final int DEFAULT_PORT = 7070;
 	public static final String DEFAULT_ADDRESS = "localhost";
 	
+	public static final String ABOUT_HTML = "/about.html";
+	
 	public static void main(String[] args)
 	{
+		System.out.println("");
 		ChatLog.initStyles();
 		new FunctionFighters();
+	}
+	
+	public static String getTextFromFile(String filepath)
+	{
+		BufferedReader in = new BufferedReader(new InputStreamReader(FunctionFighters.class.getResourceAsStream(filepath)));
+		
+		String text = "";
+		String line = "";
+		try
+		{
+			while(in != null && (line = in.readLine()) != null)
+			{
+				text += line + '\n';
+			}
+		}
+		catch(Exception e)
+		{
+			ChatLog.logError("Error reading file " + filepath);
+		}
+		
+		return text;
 	}
 	
 	private Server server;
@@ -67,6 +102,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	private Game game;
 	private GameViewer gameViewer;
 	private JFileChooser fileChooser;
+	private JDialog about;
 	
 	FunctionFighters()
 	{
@@ -78,16 +114,41 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		server.addClientListener(this);
 		
 		createUI();
-		Assets.loadAssets();
+		createAboutPane();
+		addKeyListenerToEveryComponent(frame, this);
 		FileCache.initCache();
+		Assets.loadAssets();
 
 		frame.setIconImage(Assets.icon.getImage());
 		frame.setVisible(true);
-		ChatLog.logInfo("Welcome to function fighters()!");
+		ChatLog.logInfo("Welcome to function fighters() " + VERSION);
 		
-		Globals globals = JsePlatform.standardGlobals();
-		LuaValue chunk = globals.load("print('hello world');");
-		chunk.call();
+		if(!FileCache.getBool(FileCache.MUSIC_MUTED, false))
+		{
+			Assets.startMusic();
+		}
+	}
+	
+	public void createAboutPane()
+	{
+		String text = getTextFromFile(ABOUT_HTML);
+		text = text.replace("<version>", VERSION);
+		
+		about = new JDialog(frame, "About");
+		about.setModal(true);
+		about.setResizable(false);
+		
+		JEditorPane pane;
+		pane = new JEditorPane();
+		pane.setContentType("text/html");
+		pane.setText(text);
+		pane.setEditable(false);
+		pane.addHyperlinkListener(this);
+		
+		addKeyListenerToEveryComponent(about, this);
+		
+		about.add(pane);
+		about.pack();
 	}
 	
 	public void createUI()
@@ -96,13 +157,14 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		
 		Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
 		
-		frame = new JFrame("function fighters()");
+		frame = new JFrame(TITLE + " " + VERSION);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setFocusable(true);
 		Dimension frameSize = new Dimension(2 * screenSize.width / 3, 2 * screenSize.height / 3);
 		frame.setSize(frameSize);
 		frame.setMinimumSize(new Dimension(400,300));
 		frame.setLocation(screenSize.width / 2 - frame.getWidth() / 2, screenSize.height / 2 - 2 * frame.getHeight() / 3);
+		frame.addKeyListener(this);
 		
 		menuBar = new FFMenuBar(this);
 		frame.add(menuBar, BorderLayout.NORTH);
@@ -120,6 +182,21 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		fileChooser = new JFileChooser();
 		FileNameExtensionFilter filter = new FileNameExtensionFilter("Scripts (.lua)", "lua");
 		fileChooser.setFileFilter(filter);
+	}
+	
+	private void addKeyListenerToEveryComponent(Container container, KeyListener listener)
+	{
+		for(Component component : container.getComponents())
+		{
+			if(component.isFocusable())
+			{
+				component.addKeyListener(listener);
+			}
+			if(component instanceof Container)
+			{
+				addKeyListenerToEveryComponent((Container)component, listener);
+			}
+		}
 	}
 	
 	@Override
@@ -270,6 +347,11 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		else if(src == menuBar.STOP)
 		{
 			server.sendPacketToServer(new Packet(Packet.GAME_STOP));
+		}
+		else if(src == menuBar.ABOUT)
+		{
+			about.setLocationRelativeTo(frame);
+			about.setVisible(true);
 		}
 		else if(src == chatLog.CHAT_FIELD)
 		{
@@ -458,4 +540,35 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		server.sendPacketToServer(new Packet(Packet.CHAT, message));
 	}
 
+	@Override
+	public void keyPressed(KeyEvent ev)
+	{
+		if(ev.getKeyCode() == KeyEvent.VK_M && ev.isControlDown())
+		{
+			Assets.toggleMuteMusic();
+		}
+		else if(ev.getKeyCode() == KeyEvent.VK_S && ev.isControlDown())
+		{
+			Assets.toggleMuteSound();
+		}
+	}
+
+	@Override
+	public void hyperlinkUpdate(HyperlinkEvent ev)
+	{
+		if(ev.getEventType() == HyperlinkEvent.EventType.ACTIVATED && Desktop.isDesktopSupported())
+		{
+			try
+			{
+				Desktop.getDesktop().browse(ev.getURL().toURI());
+			}
+			catch (Exception ex)
+			{
+				ChatLog.logError("Unable to open link " + ev.getURL().toString());
+			}
+		}
+	}
+
+	@Override public void keyReleased(KeyEvent arg0) { }
+	@Override public void keyTyped(KeyEvent arg0) { }
 }

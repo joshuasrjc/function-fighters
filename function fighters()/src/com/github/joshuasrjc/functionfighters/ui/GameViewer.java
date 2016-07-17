@@ -94,7 +94,7 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 		for(int i = 0; i < Game.N_TEAMS; i++)
 		{
 			JPanel panel = new JPanel(new BorderLayout());
-			JLabel label = new JLabel("Team " + i);
+			JLabel label = new JLabel("Team " + (i+1));
 			label.setFont(TEAM_LABEL_FONT);
 			label.setHorizontalAlignment(SwingConstants.CENTER);
 			label.setBackground(LABEL_COLOR);
@@ -334,7 +334,7 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 					{
 						if(teamAlive[i])
 						{
-							String str = String.format(WIN_MESSAGE, i);
+							String str = String.format(WIN_MESSAGE, i+1);
 							int x = -fontMetrics.stringWidth(str) / 2;
 							int y = -fontMetrics.getAscent() / 2;
 							g2d.drawString(str, x, y);
