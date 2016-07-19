@@ -259,7 +259,8 @@ public class GameViewer extends JPanel implements Runnable, ClientListener, List
 			
 			frames.clear();
 		}
-		
+
+		this.revalidate();
 		this.repaint();
 	}
 	

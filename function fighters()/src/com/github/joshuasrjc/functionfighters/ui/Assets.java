@@ -85,7 +85,8 @@ public class Assets
 			}
 		}
 		
-		soundMuted = FileCache.getBool("soundMuted", false);
+		soundMuted = FileCache.getBool(FileCache.SOUND_MUTED, false);
+		musicMuted = FileCache.getBool(FileCache.MUSIC_MUTED, false);
 	}
 	
 	public static void playSound(int id)

@@ -19,6 +19,7 @@ import com.github.joshuasrjc.functionfighters.network.Frame;
 import com.github.joshuasrjc.functionfighters.network.Packet;
 import com.github.joshuasrjc.functionfighters.network.Server;
 import com.github.joshuasrjc.functionfighters.network.ServerListener;
+import com.github.joshuasrjc.functionfighters.ui.Assets;
 import com.github.joshuasrjc.functionfighters.ui.ChatLog;
 import com.github.joshuasrjc.functionfighters.ui.GameViewer;
 
@@ -37,6 +38,7 @@ public class Game implements Runnable, ServerListener
 		lv.set("right", RIGHT);
 		lv.set("nTeams", N_TEAMS);
 		lv.set("nFightersPerTeam", N_FIGHTERS_PER_TEAM);
+		lv.set("stalemateTimer", STALEMATE_TIMER);
 		lv.set("time", time);
 		
 		lv.set("getDistanceTo", gf.getDistanceTo);
@@ -76,6 +78,7 @@ public class Game implements Runnable, ServerListener
 	
 	public static final int N_TEAMS = 2;
 	public static final int N_FIGHTERS_PER_TEAM = 4;
+	public static final long STALEMATE_TIMER = 3000;
 	public static final long FRAME_MILLIS = 20;
 	
 	public static final float WIDTH = 1000;
@@ -84,6 +87,9 @@ public class Game implements Runnable, ServerListener
 	public static final float BOTTOM = HEIGHT/2;
 	public static final float LEFT = -WIDTH/2;
 	public static final float RIGHT = WIDTH/2;
+	
+	public static final float PI = (float)Math.PI;
+	public static final float TWOPI = (float)Math.PI * 2f;
 	
 	private Game game = this;
 	private Server server;
@@ -302,6 +308,17 @@ public class Game implements Runnable, ServerListener
 	
 	public boolean start()
 	{
+		if(thread != null && thread.isAlive())
+		{
+			try
+			{
+				thread.join();
+			}
+			catch(Exception ex)
+			{
+				return false;
+			}
+		}
 		time = 0;
 		String[] scripts = getScripts();
 		if(scripts == null)
@@ -322,6 +339,11 @@ public class Game implements Runnable, ServerListener
 		}
 		
 		addObjects();
+		
+		for(Fighter fighter : fighters)
+		{
+			fighter.initScript();
+		}
 		
 		gameRunning = true;
 		
@@ -345,23 +367,6 @@ public class Game implements Runnable, ServerListener
 	{
 		gameRunning = false;
 		gamePaused = false;
-		time = 0;
-		lastUID = 0;
-		
-		try
-		{
-			thread.join();
-		}
-		catch (Exception ex)
-		{
-			ChatLog.logError("Error stopping game.");
-		}
-		
-		thread = null;
-		
-		while(objects.size() > 0) objects.remove(objects.get(0));
-		while(fighters.size() > 0) fighters.remove(fighters.get(0));
-		while(bullets.size() > 0) bullets.remove(bullets.get(0));
 	}
 	
 	public void update(int step)
@@ -441,6 +446,16 @@ public class Game implements Runnable, ServerListener
 			cleanup();
 			sendFrame();
 			time++;
+			if(time >= 3000)
+			{
+				server.sendPacketToAllClients(new Packet(Packet.PLAY_SOUND, Assets.SOUND_ERROR_ID));
+				for(Fighter fighter : fighters)
+				{
+					fighter.destroy();
+				}
+				cleanup();
+				time = Long.MIN_VALUE;
+			}
 			try { Thread.sleep(FRAME_MILLIS); } catch(Exception ex) { break; }
 			
 			while(gameRunning && gamePaused)
@@ -448,6 +463,13 @@ public class Game implements Runnable, ServerListener
 				try { Thread.sleep(FRAME_MILLIS); } catch(Exception ex) { break; }
 			}
 		}
+		
+		time = 0;
+		lastUID = 0;
+		
+		while(objects.size() > 0) objects.remove(objects.get(0));
+		while(fighters.size() > 0) fighters.remove(fighters.get(0));
+		while(bullets.size() > 0) bullets.remove(bullets.get(0));
 	}
 	
 	public boolean isRunning()
@@ -649,6 +671,8 @@ public class Game implements Runnable, ServerListener
 		{
 			Vector2 p = new Vector2(arg0, arg1);
 			p.subtract(fighter.position);
+			double angle = Math.atan2(p.y, p.x);
+			if(angle < 0) angle += TWOPI;
 			return LuaValue.valueOf(Math.atan2(p.y, p.x));
 		}};
 		

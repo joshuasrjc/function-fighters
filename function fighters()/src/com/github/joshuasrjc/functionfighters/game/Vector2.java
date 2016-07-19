@@ -195,7 +195,6 @@ public class Vector2
 		return v.toLuaValue();
 	}};
 
-	
 	private LuaValue unm = new OneArgFunction() { @Override public LuaValue call(LuaValue arg0)
 	{
 		arg0.checktable();

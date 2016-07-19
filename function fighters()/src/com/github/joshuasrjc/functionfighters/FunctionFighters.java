@@ -2,13 +2,10 @@ package com.github.joshuasrjc.functionfighters;
 
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Desktop;
 import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Graphics;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -18,16 +15,21 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.text.NumberFormat;
 import java.util.Scanner;
 
-import javax.swing.*;
+import javax.swing.JDialog;
+import javax.swing.JEditorPane;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JPasswordField;
+import javax.swing.JSplitPane;
+import javax.swing.JTextField;
+import javax.swing.UIManager;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 import javax.swing.event.HyperlinkEvent;
@@ -35,30 +37,25 @@ import javax.swing.event.HyperlinkListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.text.NumberFormatter;
 
-import org.luaj.vm2.Globals;
-import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import com.github.joshuasrjc.functionfighters.game.Fighter;
 import com.github.joshuasrjc.functionfighters.game.Game;
 import com.github.joshuasrjc.functionfighters.network.Client;
 import com.github.joshuasrjc.functionfighters.network.ClientListener;
-import com.github.joshuasrjc.functionfighters.network.Frame;
 import com.github.joshuasrjc.functionfighters.network.Packet;
 import com.github.joshuasrjc.functionfighters.network.Server;
 import com.github.joshuasrjc.functionfighters.network.ServerListener;
+import com.github.joshuasrjc.functionfighters.ui.Assets;
 import com.github.joshuasrjc.functionfighters.ui.ChatLog;
 import com.github.joshuasrjc.functionfighters.ui.FFMenuBar;
 import com.github.joshuasrjc.functionfighters.ui.FileCache;
 import com.github.joshuasrjc.functionfighters.ui.GameViewer;
-import com.github.joshuasrjc.functionfighters.ui.Assets;
 
 public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener, KeyListener, HyperlinkListener
 {
-	public static final String VERSION = "v1.13";
+	public static final String VERSION = "v2.01";
 	public static final String TITLE = "function fighters()";
+	public static final String GETTING_STARTED_URL = "https://github.com/joshuasrjc/function-fighters/wiki";
+	public static final String DOCUMENTATION_URL = "https://github.com/joshuasrjc/function-fighters/wiki/Globals";
 	
 	public static final String DEFAULT_NICKNAME = "";
 	public static final int DEFAULT_PORT = 7070;
@@ -180,6 +177,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		frame.add(splitPane, BorderLayout.CENTER);
 		
 		fileChooser = new JFileChooser();
+		fileChooser.setMultiSelectionEnabled(true);
 		FileNameExtensionFilter filter = new FileNameExtensionFilter("Scripts (.lua)", "lua");
 		fileChooser.setFileFilter(filter);
 	}
@@ -353,6 +351,14 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 			about.setLocationRelativeTo(frame);
 			about.setVisible(true);
 		}
+		else if(src == menuBar.GETTING_STARTED)
+		{
+			openLink(GETTING_STARTED_URL);
+		}
+		else if(src == menuBar.DOCUMENTATION)
+		{
+			openLink(DOCUMENTATION_URL);
+		}
 		else if(src == chatLog.CHAT_FIELD)
 		{
 			chat();
@@ -375,40 +381,44 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 				FileCache.cacheString(FileCache.SCRIPTDIR, scriptDir);
 			}
 			catch (IOException e) {  }
-			File file = fileChooser.getSelectedFile();
-			
-			if(!file.exists() || !file.isFile())
+			System.out.println(fileChooser.getSelectedFiles().length);
+			for(File file : fileChooser.getSelectedFiles())
 			{
-				ChatLog.logError("That file does not exist.");
-				return;
-			}
-			if(!file.canRead())
-			{
-				ChatLog.logError("That file is not readable.");
-				return;
-			}
-			
-			try
-			{
-				String name = file.getName();
-				String text = "";
-				FileInputStream in = new FileInputStream(file);
-				Scanner scanner = new Scanner(in);
-				while(scanner.hasNext())
+				System.out.println(file.getName());
+				
+				if(!file.exists() || !file.isFile())
 				{
-					text += scanner.nextLine() + '\n';
+					ChatLog.logError("That file does not exist.");
+					return;
 				}
-				scanner.close();
-				server.sendPacketToServer(new Packet(Packet.SCRIPT, name + '\n' + text));
-			}
-			catch(IOException ex)
-			{
-				ChatLog.logError("Error reading file.");
+				if(!file.canRead())
+				{
+					ChatLog.logError("That file is not readable.");
+					return;
+				}
+				
+				try
+				{
+					String name = file.getName();
+					String text = "";
+					FileInputStream in = new FileInputStream(file);
+					Scanner scanner = new Scanner(in);
+					while(scanner.hasNext())
+					{
+						text += scanner.nextLine() + '\n';
+					}
+					scanner.close();
+					server.sendPacketToServer(new Packet(Packet.SCRIPT, name + '\n' + text));
+				}
+				catch(IOException ex)
+				{
+					ChatLog.logError("Error reading file.");
+				}
 			}
 		}
 	}
 	
-	private JTextField createNicknameField()
+	private static JTextField createNicknameField()
 	{
 		String nickname = FileCache.getString(FileCache.NICKNAME);
 		if(nickname == null) nickname = DEFAULT_NICKNAME;
@@ -429,14 +439,14 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		return field;
 	}
 	
-	private JTextField createAddressField()
+	private static JTextField createAddressField()
 	{
 		String address = FileCache.getString(FileCache.ADDRESS);
 		if(address == null) address = DEFAULT_ADDRESS;
 		return new JTextField(address);
 	}
 	
-	private JTextField createPortField()
+	private static JTextField createPortField()
 	{
 		String port = FileCache.getString(FileCache.PORT);
 		if(port == null) port = "" + DEFAULT_PORT;
@@ -551,6 +561,35 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 		{
 			Assets.toggleMuteSound();
 		}
+		else if(ev.getKeyCode() == KeyEvent.VK_R && ev.isControlDown())
+		{
+			server.sendPacketToServer(new Packet(Packet.GAME_STOP));
+			server.sendPacketToServer(new Packet(Packet.GAME_START));
+		}
+	}
+	
+	public void openLink(String str)
+	{
+		try
+		{
+			Desktop.getDesktop().browse(new URI(str));
+		}
+		catch (Exception ex)
+		{
+			ChatLog.logError("Unable to open link " + str);
+		}
+	}
+	
+	public void openLink(URL url)
+	{
+		try
+		{
+			Desktop.getDesktop().browse(url.toURI());
+		}
+		catch (Exception ex)
+		{
+			ChatLog.logError("Unable to open link " + url.toString());
+		}
 	}
 
 	@Override
@@ -558,14 +597,7 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	{
 		if(ev.getEventType() == HyperlinkEvent.EventType.ACTIVATED && Desktop.isDesktopSupported())
 		{
-			try
-			{
-				Desktop.getDesktop().browse(ev.getURL().toURI());
-			}
-			catch (Exception ex)
-			{
-				ChatLog.logError("Unable to open link " + ev.getURL().toString());
-			}
+			openLink(ev.getURL());
 		}
 	}
 
