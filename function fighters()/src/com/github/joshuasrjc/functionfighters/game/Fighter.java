@@ -243,6 +243,10 @@ public class Fighter extends GameObject
 		globals.set("print", LuaFunctions.print(server));
 		globals.set("Vector2", Vector2.toGlobalLuaValue());
 		globals.set("os", LuaValue.NIL);
+		globals.set("package", LuaValue.NIL);
+		globals.set("io", LuaValue.NIL);
+		globals.set("coroutine", LuaValue.NIL);
+		globals.set("luajava", LuaValue.NIL);
 		LuaValue math = globals.get("math");
 		math.set("random", LuaValue.NIL);
 		math.set("randomseed", LuaValue.NIL);
@@ -465,7 +469,9 @@ public class Fighter extends GameObject
 		Vector2 p = new Vector2(arg0, arg1);
 		p.subtract(self.position);
 		p.normalize();
-		p.times(speed);
+		p.multiply(speed);
+		
+		System.out.println(p.x + ", " + p.y);
 		
 		self.addForce(p);
 		return NIL;

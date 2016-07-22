@@ -38,6 +38,13 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.BaseLib;
+import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.jse.JsePlatform;
+import org.luaj.vm2.luajc.LuaJC;
+
 import com.github.joshuasrjc.functionfighters.game.Game;
 import com.github.joshuasrjc.functionfighters.network.Client;
 import com.github.joshuasrjc.functionfighters.network.ClientListener;
@@ -52,7 +59,7 @@ import com.github.joshuasrjc.functionfighters.ui.GameViewer;
 
 public class FunctionFighters implements ClientListener, ServerListener, ActionListener, ListSelectionListener, KeyListener, HyperlinkListener
 {
-	public static final String VERSION = "v2.01";
+	public static final String VERSION = "v2.02";
 	public static final String TITLE = "function fighters()";
 	public static final String GETTING_STARTED_URL = "https://github.com/joshuasrjc/function-fighters/wiki";
 	public static final String DOCUMENTATION_URL = "https://github.com/joshuasrjc/function-fighters/wiki/Globals";
@@ -65,6 +72,8 @@ public class FunctionFighters implements ClientListener, ServerListener, ActionL
 	
 	public static void main(String[] args)
 	{
+		
+		
 		System.out.println("");
 		ChatLog.initStyles();
 		new FunctionFighters();
